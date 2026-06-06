@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Frontend build output
+dist/
+build/
+.vite/
+
+# Java / Spring Boot build output
+target/
+**/target/
+
+# Logs
+*.log
+logs/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Runtime temp files
+*.pid
+*.seed
+*.tmp
+tmp/
+temp/
