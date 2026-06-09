@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,7 +55,12 @@ public class DepartmentController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @Transactional
     public void delete(@PathVariable UUID id) {
+        if (!departments.existsById(id)) {
+            throw new NotFoundException("Department not found");
+        }
+        departments.clearEmployeeDepartmentReferences(id);
         departments.deleteById(id);
     }
 

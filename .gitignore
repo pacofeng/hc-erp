@@ -1,11 +1,14 @@
 # Dependencies
 node_modules/
 **/node_modules/
+.pnpm-store/
+**/.pnpm-store/
 
 # Frontend build output
 dist/
 build/
 .vite/
+*.tsbuildinfo
 
 # Java / Spring Boot build output
 target/

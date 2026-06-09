@@ -8,6 +8,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +48,7 @@ public class AuthController {
                 "token", jwtService.createToken(user),
                 "accountId", account.id,
                 "username", account.username,
+                "language", account.preferredLanguage,
                 "authorities", user.getAuthorities().stream().map(Object::toString).toList());
     }
 
@@ -56,9 +58,25 @@ public class AuthController {
                 "accountId", user.accountId(),
                 "username", user.getUsername(),
                 "employeeId", user.account().employeeId == null ? "" : user.account().employeeId,
+                "language", user.account().preferredLanguage,
                 "authorities", user.getAuthorities().stream().map(Object::toString).toList());
     }
 
+    @PutMapping("/language")
+    public Map<String, Object> updateLanguage(@AuthenticationPrincipal ErpUserDetails user,
+                                              @Valid @RequestBody LanguageRequest request) {
+        if (!request.language().equals("en") && !request.language().equals("zh-CN")) {
+            throw new IllegalArgumentException("Unsupported language");
+        }
+        var account = user.account();
+        account.preferredLanguage = request.language();
+        accounts.save(account);
+        return Map.of("language", account.preferredLanguage);
+    }
+
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+    }
+
+    public record LanguageRequest(@NotBlank String language) {
     }
 }

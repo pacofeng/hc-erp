@@ -1,9 +1,11 @@
 package com.hcerp.erp.employee;
 
-import java.time.OffsetDateTime;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,9 +16,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
+import com.hcerp.erp.common.Enums.MarriedStatus;
 import com.hcerp.erp.common.NotFoundException;
 
 import jakarta.validation.Valid;
@@ -27,47 +31,71 @@ import jakarta.validation.constraints.NotNull;
 @RequestMapping("/api/employees")
 public class EmployeeController {
     private final EmployeeRepository employees;
+    private final EmergencyContactRepository emergencyContacts;
 
-    public EmployeeController(EmployeeRepository employees) {
+    public EmployeeController(EmployeeRepository employees, EmergencyContactRepository emergencyContacts) {
         this.employees = employees;
+        this.emergencyContacts = emergencyContacts;
     }
 
     @GetMapping
     @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasRole('SYSTEM_ADMIN')")
-    public List<Employee> list() {
-        return employees.findByDeletedAtIsNullOrderByEmployeeNoAsc();
+    public List<EmployeeResponse> list() {
+        List<Employee> employeeRows = employees.findAllByOrderByEmployeeNoAsc();
+        Map<UUID, EmergencyContact> contactByEmployeeId = emergencyContacts
+                .findByEmployeeIdIn(employeeRows.stream().map(employee -> employee.id).toList())
+                .stream()
+                .collect(Collectors.toMap(contact -> contact.employeeId, Function.identity()));
+        return employeeRows.stream()
+                .map(employee -> toResponse(employee, contactByEmployeeId.get(employee.id)))
+                .toList();
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('EMPLOYEE_CREATE') or hasRole('SYSTEM_ADMIN')")
-    public Employee create(@Valid @RequestBody EmployeeRequest request) {
+    @Transactional
+    public EmployeeResponse create(@Valid @RequestBody EmployeeRequest request) {
         Employee employee = new Employee();
         apply(employee, request);
-        return employees.save(employee);
+        Employee saved = employees.save(employee);
+        EmergencyContact contact = saveEmergencyContact(saved.id, request.emergencyContact());
+        return toResponse(saved, contact);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('EMPLOYEE_EDIT') or hasRole('SYSTEM_ADMIN')")
-    public Employee update(@PathVariable UUID id, @Valid @RequestBody EmployeeRequest request) {
+    @Transactional
+    public EmployeeResponse update(@PathVariable UUID id, @Valid @RequestBody EmployeeRequest request) {
         Employee employee = employees.findById(id).orElseThrow(() -> new NotFoundException("Employee not found"));
         apply(employee, request);
-        return employees.save(employee);
+        Employee saved = employees.save(employee);
+        EmergencyContact contact = saveEmergencyContact(saved.id, request.emergencyContact());
+        return toResponse(saved, contact);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('EMPLOYEE_DELETE') or hasRole('SYSTEM_ADMIN')")
+    @Transactional
     public void delete(@PathVariable UUID id) {
-        Employee employee = employees.findById(id).orElseThrow(() -> new NotFoundException("Employee not found"));
-        employee.deletedAt = OffsetDateTime.now();
-        employees.save(employee);
+        if (!employees.existsById(id)) {
+            throw new NotFoundException("Employee not found");
+        }
+        employees.clearAccountRoleCreatedByReferences(id);
+        employees.clearRolePermissionCreatedByReferences(id);
+        employees.deleteAccountsByEmployeeId(id);
+        employees.clearDepartmentManagerReferences(id);
+        employees.clearEmployeeManagerReferences(id);
+        emergencyContacts.deleteByEmployeeId(id);
+        employees.deleteById(id);
     }
 
     private void apply(Employee employee, EmployeeRequest request) {
         employee.employeeNo = request.employeeNo();
-        employee.firstName = request.firstName();
-        employee.lastName = request.lastName();
+        employee.fullName = request.fullName();
         employee.gender = request.gender();
-        employee.displayName = request.displayName();
+        employee.dateOfBirth = request.dateOfBirth();
+        employee.marriedStatus = request.marriedStatus();
+        employee.address = request.address();
         employee.phone = request.phone();
         employee.departmentId = request.departmentId();
         employee.managerId = request.managerId();
@@ -77,18 +105,87 @@ public class EmployeeController {
         employee.status = request.status();
     }
 
+    private EmergencyContact saveEmergencyContact(UUID employeeId, EmergencyContactRequest request) {
+        EmergencyContact contact = emergencyContacts.findByEmployeeId(employeeId).orElseGet(EmergencyContact::new);
+        contact.employeeId = employeeId;
+        contact.fullName = request.fullName();
+        contact.phone = request.phone();
+        contact.relation = request.relation();
+        return emergencyContacts.save(contact);
+    }
+
+    private EmployeeResponse toResponse(Employee employee, EmergencyContact contact) {
+        return new EmployeeResponse(
+                employee.id,
+                employee.employeeNo,
+                employee.fullName,
+                employee.gender,
+                employee.dateOfBirth,
+                employee.marriedStatus,
+                employee.address,
+                employee.phone,
+                employee.departmentId,
+                employee.managerId,
+                employee.jobTitle,
+                employee.hireDate,
+                employee.terminationDate,
+                employee.status,
+                employee.createdAt,
+                employee.updatedAt,
+                contact == null ? null : new EmergencyContactResponse(
+                        contact.id,
+                        contact.fullName,
+                        contact.phone,
+                        contact.relation));
+    }
+
     public record EmployeeRequest(
             @NotBlank String employeeNo,
-            @NotBlank String firstName,
-            @NotBlank String lastName,
+            @NotBlank String fullName,
             @NotNull GenderType gender,
-            String displayName,
+            @NotNull LocalDate dateOfBirth,
+            MarriedStatus marriedStatus,
+            String address,
+            @NotBlank String phone,
+            UUID departmentId,
+            UUID managerId,
+            String jobTitle,
+            LocalDate hireDate,
+            LocalDate terminationDate,
+            @NotNull EmployeeStatus status,
+            @NotNull @Valid EmergencyContactRequest emergencyContact) {
+    }
+
+    public record EmergencyContactRequest(
+            @NotBlank String fullName,
+            @NotBlank String phone,
+            @NotBlank String relation) {
+    }
+
+    public record EmployeeResponse(
+            UUID id,
+            String employeeNo,
+            String fullName,
+            GenderType gender,
+            LocalDate dateOfBirth,
+            MarriedStatus marriedStatus,
+            String address,
             String phone,
             UUID departmentId,
             UUID managerId,
             String jobTitle,
             LocalDate hireDate,
             LocalDate terminationDate,
-            @NotNull EmployeeStatus status) {
+            EmployeeStatus status,
+            java.time.OffsetDateTime createdAt,
+            java.time.OffsetDateTime updatedAt,
+            EmergencyContactResponse emergencyContact) {
+    }
+
+    public record EmergencyContactResponse(
+            UUID id,
+            String fullName,
+            String phone,
+            String relation) {
     }
 }

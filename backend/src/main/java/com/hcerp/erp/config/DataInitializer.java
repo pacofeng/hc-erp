@@ -1,5 +1,6 @@
 package com.hcerp.erp.config;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import org.springframework.boot.CommandLineRunner;
@@ -37,9 +38,10 @@ public class DataInitializer {
 
             Employee employee = new Employee();
             employee.employeeNo = "EMP-0001";
-            employee.firstName = "System";
-            employee.lastName = "Admin";
+            employee.fullName = "System Admin";
             employee.gender = GenderType.MALE;
+            employee.dateOfBirth = LocalDate.of(1970, 1, 1);
+            employee.phone = "N/A";
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()
                     .filter(d -> d.code == DepartmentCode.ADMIN)

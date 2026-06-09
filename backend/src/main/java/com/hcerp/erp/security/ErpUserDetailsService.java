@@ -21,7 +21,7 @@ public class ErpUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Account account = accounts.findByUsernameAndDeletedAtIsNull(username)
+        Account account = accounts.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException(username));
         var authorities = new ArrayList<SimpleGrantedAuthority>();
         accounts.findRoleCodes(account.id).forEach(code -> authorities.add(new SimpleGrantedAuthority("ROLE_" + code)));

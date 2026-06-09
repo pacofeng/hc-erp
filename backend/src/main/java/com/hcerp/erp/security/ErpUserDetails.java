@@ -9,9 +9,15 @@ import org.springframework.security.core.userdetails.UserDetails;
 import com.hcerp.erp.account.Account;
 import com.hcerp.erp.common.Enums.AccountStatus;
 
-public record ErpUserDetails(Account account, Collection<? extends GrantedAuthority> authorities) implements UserDetails {
+public record ErpUserDetails(Account account, Collection<? extends GrantedAuthority> authorities)
+        implements UserDetails {
     public UUID accountId() {
         return account.id;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return authorities;
     }
 
     @Override
@@ -31,6 +37,6 @@ public record ErpUserDetails(Account account, Collection<? extends GrantedAuthor
 
     @Override
     public boolean isEnabled() {
-        return account.status == AccountStatus.ACTIVE && account.deletedAt == null;
+        return account.status == AccountStatus.ACTIVE;
     }
 }

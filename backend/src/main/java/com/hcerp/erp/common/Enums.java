@@ -6,6 +6,7 @@ public final class Enums {
 
     public enum GenderType { MALE, FEMALE }
     public enum EmployeeStatus { ACTIVE, TERMINATED }
+    public enum MarriedStatus { SINGLE, MARRIED, DIVORCED, WIDOWED }
     public enum AccountStatus { ACTIVE, LOCKED, TERMINATED }
     public enum AccountType { USER, SYSTEM }
     public enum RoleCode { SYSTEM_ADMIN, HR_MANAGER, HR_OFFICE }

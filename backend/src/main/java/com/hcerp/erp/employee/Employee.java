@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
+import com.hcerp.erp.common.Enums.MarriedStatus;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,11 +22,13 @@ public class Employee {
     @Id
     public UUID id;
     public String employeeNo;
-    public String firstName;
-    public String lastName;
+    public String fullName;
     @Enumerated(EnumType.STRING)
     public GenderType gender;
-    public String displayName;
+    public LocalDate dateOfBirth;
+    @Enumerated(EnumType.STRING)
+    public MarriedStatus marriedStatus = MarriedStatus.SINGLE;
+    public String address;
     public String phone;
     public UUID departmentId;
     public UUID managerId;
@@ -36,19 +39,18 @@ public class Employee {
     public EmployeeStatus status = EmployeeStatus.ACTIVE;
     public OffsetDateTime createdAt;
     public OffsetDateTime updatedAt;
-    public OffsetDateTime deletedAt;
 
     @PrePersist
     void onCreate() {
         if (id == null) id = UUID.randomUUID();
-        if (displayName == null || displayName.isBlank()) displayName = firstName + " " + lastName;
+        if (marriedStatus == null) marriedStatus = MarriedStatus.SINGLE;
         if (createdAt == null) createdAt = OffsetDateTime.now();
         if (updatedAt == null) updatedAt = OffsetDateTime.now();
     }
 
     @PreUpdate
     void onUpdate() {
-        if (displayName == null || displayName.isBlank()) displayName = firstName + " " + lastName;
+        if (marriedStatus == null) marriedStatus = MarriedStatus.SINGLE;
         updatedAt = OffsetDateTime.now();
     }
 }

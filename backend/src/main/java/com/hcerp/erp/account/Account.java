@@ -28,12 +28,12 @@ public class Account {
     public AccountType accountType = AccountType.USER;
     public Integer failedLoginCount = 0;
     public Boolean mustChangePassword = false;
+    public String preferredLanguage = "zh-CN";
     public OffsetDateTime passwordChangedAt;
     public OffsetDateTime lastLoginAt;
     public String lastLoginIp;
     public OffsetDateTime createdAt;
     public OffsetDateTime updatedAt;
-    public OffsetDateTime deletedAt;
 
     @PrePersist
     void onCreate() {

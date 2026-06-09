@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +38,7 @@ public class AccountController {
 
     @GetMapping
     public List<AccountView> list() {
-        return accounts.findAll().stream().map(AccountView::from).toList();
+        return accounts.findAllByOrderByUsernameAsc().stream().map(AccountView::from).toList();
     }
 
     @PostMapping
@@ -64,10 +65,14 @@ public class AccountController {
     }
 
     @DeleteMapping("/{id}")
+    @Transactional
     public void delete(@PathVariable UUID id) {
-        Account account = accounts.findById(id).orElseThrow(() -> new NotFoundException("Account not found"));
-        account.deletedAt = OffsetDateTime.now();
-        accounts.save(account);
+        if (!accounts.existsById(id)) {
+            throw new NotFoundException("Account not found");
+        }
+        accounts.clearAccountRoleCreatedByReferences(id);
+        accounts.clearRolePermissionCreatedByReferences(id);
+        accounts.deleteById(id);
     }
 
     private void apply(Account account, AccountRequest request) {
@@ -76,6 +81,13 @@ public class AccountController {
         account.status = request.status();
         account.accountType = request.accountType();
         account.mustChangePassword = Boolean.TRUE.equals(request.mustChangePassword());
+        String preferredLanguage = request.preferredLanguage() == null || request.preferredLanguage().isBlank()
+                ? "zh-CN"
+                : request.preferredLanguage();
+        if (!preferredLanguage.equals("en") && !preferredLanguage.equals("zh-CN")) {
+            throw new IllegalArgumentException("Unsupported language");
+        }
+        account.preferredLanguage = preferredLanguage;
     }
 
     public record AccountRequest(
@@ -84,14 +96,16 @@ public class AccountController {
             String password,
             @NotNull AccountStatus status,
             @NotNull AccountType accountType,
-            Boolean mustChangePassword) {
+            Boolean mustChangePassword,
+            String preferredLanguage) {
     }
 
     public record AccountView(UUID id, UUID employeeId, String username, AccountStatus status, AccountType accountType,
-                              Integer failedLoginCount, Boolean mustChangePassword, OffsetDateTime lastLoginAt) {
+                              Integer failedLoginCount, Boolean mustChangePassword, String preferredLanguage,
+                              OffsetDateTime lastLoginAt) {
         static AccountView from(Account account) {
             return new AccountView(account.id, account.employeeId, account.username, account.status, account.accountType,
-                    account.failedLoginCount, account.mustChangePassword, account.lastLoginAt);
+                    account.failedLoginCount, account.mustChangePassword, account.preferredLanguage, account.lastLoginAt);
         }
     }
 }
