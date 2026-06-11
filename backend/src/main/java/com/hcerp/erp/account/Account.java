@@ -29,6 +29,7 @@ public class Account {
     public Integer failedLoginCount = 0;
     public Boolean mustChangePassword = false;
     public String preferredLanguage = "zh-CN";
+    public String avatar;
     public OffsetDateTime passwordChangedAt;
     public OffsetDateTime lastLoginAt;
     public String lastLoginIp;

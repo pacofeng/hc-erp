@@ -1,0 +1,4 @@
+ALTER TABLE employees
+    ADD COLUMN IF NOT EXISTS address_province VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS address_city VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS address_district VARCHAR(100);

@@ -52,11 +52,11 @@ SET date_of_birth = DATE '1970-01-01'
 WHERE date_of_birth IS NULL;
 
 UPDATE employees
-SET phone = 'N/A'
+SET phone = '13800000000'
 WHERE phone IS NULL;
 
 UPDATE employees
-SET phone = 'N/A'
+SET phone = '13800000000'
 WHERE phone = 'Unknown';
 
 UPDATE employees

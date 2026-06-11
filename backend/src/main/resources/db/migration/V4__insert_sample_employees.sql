@@ -5,7 +5,7 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM employees
-        WHERE phone LIKE '+1-555-10__'
+        WHERE phone LIKE '13900010___'
     ) THEN
         RETURN;
     END IF;
@@ -76,7 +76,7 @@ BEGIN
                 last_name,
                 gender,
                 first_name || ' ' || last_name,
-                '+1-555-' || LPAD((1000 + row_no)::TEXT, 4, '0'),
+                '139000' || LPAD((10000 + row_no)::TEXT, 5, '0'),
                 department_id,
                 NULL,
                 job_title,
@@ -149,7 +149,7 @@ BEGIN
                 date_of_birth,
                 married_status,
                 address,
-                '+1-555-' || LPAD((1000 + row_no)::TEXT, 4, '0'),
+                '139000' || LPAD((10000 + row_no)::TEXT, 5, '0'),
                 department_id,
                 NULL,
                 job_title,

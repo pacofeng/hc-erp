@@ -23,6 +23,8 @@ import com.hcerp.erp.common.NotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @RequestMapping("/api/accounts")
@@ -81,6 +83,7 @@ public class AccountController {
         account.status = request.status();
         account.accountType = request.accountType();
         account.mustChangePassword = Boolean.TRUE.equals(request.mustChangePassword());
+        account.avatar = request.avatar();
         String preferredLanguage = request.preferredLanguage() == null || request.preferredLanguage().isBlank()
                 ? "zh-CN"
                 : request.preferredLanguage();
@@ -97,15 +100,19 @@ public class AccountController {
             @NotNull AccountStatus status,
             @NotNull AccountType accountType,
             Boolean mustChangePassword,
+            @Size(max = 30000000, message = "Avatar must be 20MB or smaller")
+            @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Avatar must be an uploaded image file")
+            String avatar,
             String preferredLanguage) {
     }
 
     public record AccountView(UUID id, UUID employeeId, String username, AccountStatus status, AccountType accountType,
                               Integer failedLoginCount, Boolean mustChangePassword, String preferredLanguage,
-                              OffsetDateTime lastLoginAt) {
+                              String avatar, OffsetDateTime lastLoginAt) {
         static AccountView from(Account account) {
             return new AccountView(account.id, account.employeeId, account.username, account.status, account.accountType,
-                    account.failedLoginCount, account.mustChangePassword, account.preferredLanguage, account.lastLoginAt);
+                    account.failedLoginCount, account.mustChangePassword, account.preferredLanguage,
+                    account.avatar, account.lastLoginAt);
         }
     }
 }

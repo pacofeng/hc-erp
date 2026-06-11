@@ -27,6 +27,8 @@ import com.hcerp.erp.security.ErpUserDetails;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -62,7 +64,11 @@ public class SettingsController {
             @Valid @RequestBody ProfileRequest request) {
         Account account = account(user);
         Employee employee = employee(account);
+        account.avatar = request.avatar();
         employee.phone = request.phone();
+        employee.addressProvince = request.addressProvince();
+        employee.addressCity = request.addressCity();
+        employee.addressDistrict = request.addressDistrict();
         employee.address = request.address();
 
         EmergencyContact contact = emergencyContacts.findByEmployeeId(employee.id).orElseGet(EmergencyContact::new);
@@ -93,12 +99,16 @@ public class SettingsController {
     private ProfileResponse toResponse(Account account, Employee employee, EmergencyContact contact) {
         return new ProfileResponse(
                 account.username,
+                account.avatar,
                 employee.employeeNo,
                 employee.fullName,
                 employee.gender,
                 employee.dateOfBirth,
                 employee.marriedStatus,
                 employee.phone,
+                employee.addressProvince,
+                employee.addressCity,
+                employee.addressDistrict,
                 employee.address,
                 departmentName(employee.departmentId),
                 managerName(employee.managerId),
@@ -127,25 +137,35 @@ public class SettingsController {
     }
 
     public record ProfileRequest(
-            @NotBlank String phone,
+            @Size(max = 30000000, message = "Avatar must be 20MB or smaller")
+            @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Avatar must be an uploaded image file")
+            String avatar,
+            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
+            String addressProvince,
+            String addressCity,
+            String addressDistrict,
             String address,
             @NotNull @Valid EmergencyContactRequest emergencyContact) {
     }
 
     public record EmergencyContactRequest(
             @NotBlank String fullName,
-            @NotBlank String phone,
+            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
             @NotBlank String relation) {
     }
 
     public record ProfileResponse(
             String username,
+            String avatar,
             String employeeNo,
             String fullName,
             GenderType gender,
             LocalDate dateOfBirth,
             MarriedStatus marriedStatus,
             String phone,
+            String addressProvince,
+            String addressCity,
+            String addressDistrict,
             String address,
             String departmentName,
             String managerName,

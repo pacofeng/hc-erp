@@ -13,6 +13,9 @@ public final class Enums {
     public enum RoleStatus { ACTIVE, INACTIVE }
     public enum DepartmentCode { ADMIN, HR }
     public enum DepartmentStatus { ACTIVE, INACTIVE }
-    public enum PermissionCode { EMPLOYEE_VIEW, EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE }
-    public enum ModuleCode { EMPLOYEE }
+    public enum PermissionCode {
+        EMPLOYEE_VIEW, EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE,
+        DEPARTMENT_VIEW, DEPARTMENT_CREATE, DEPARTMENT_EDIT, DEPARTMENT_DELETE
+    }
+    public enum ModuleCode { EMPLOYEE, DEPARTMENT }
 }

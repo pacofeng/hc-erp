@@ -24,7 +24,6 @@ import jakarta.validation.constraints.NotNull;
 
 @RestController
 @RequestMapping("/api/departments")
-@PreAuthorize("hasRole('SYSTEM_ADMIN') or hasAuthority('EMPLOYEE_VIEW')")
 public class DepartmentController {
     private final DepartmentRepository departments;
 
@@ -33,12 +32,13 @@ public class DepartmentController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW') or hasRole('SYSTEM_ADMIN')")
     public List<Department> list() {
         return departments.findAll();
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_CREATE') or hasRole('SYSTEM_ADMIN')")
     public Department create(@Valid @RequestBody DepartmentRequest request) {
         Department department = new Department();
         apply(department, request);
@@ -46,7 +46,7 @@ public class DepartmentController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_EDIT') or hasRole('SYSTEM_ADMIN')")
     public Department update(@PathVariable UUID id, @Valid @RequestBody DepartmentRequest request) {
         Department department = departments.findById(id).orElseThrow(() -> new NotFoundException("Department not found"));
         apply(department, request);
@@ -54,7 +54,7 @@ public class DepartmentController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_DELETE') or hasRole('SYSTEM_ADMIN')")
     @Transactional
     public void delete(@PathVariable UUID id) {
         if (!departments.existsById(id)) {

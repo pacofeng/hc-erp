@@ -41,7 +41,7 @@ public class DataInitializer {
             employee.fullName = "System Admin";
             employee.gender = GenderType.MALE;
             employee.dateOfBirth = LocalDate.of(1970, 1, 1);
-            employee.phone = "N/A";
+            employee.phone = "13800000000";
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()
                     .filter(d -> d.code == DepartmentCode.ADMIN)

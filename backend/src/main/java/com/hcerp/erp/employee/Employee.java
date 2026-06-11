@@ -28,8 +28,12 @@ public class Employee {
     public LocalDate dateOfBirth;
     @Enumerated(EnumType.STRING)
     public MarriedStatus marriedStatus = MarriedStatus.SINGLE;
+    public String addressProvince;
+    public String addressCity;
+    public String addressDistrict;
     public String address;
     public String phone;
+    public String photo;
     public UUID departmentId;
     public UUID managerId;
     public String jobTitle;

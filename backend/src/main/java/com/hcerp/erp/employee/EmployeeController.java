@@ -26,6 +26,8 @@ import com.hcerp.erp.common.NotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @RequestMapping("/api/employees")
@@ -95,8 +97,12 @@ public class EmployeeController {
         employee.gender = request.gender();
         employee.dateOfBirth = request.dateOfBirth();
         employee.marriedStatus = request.marriedStatus();
+        employee.addressProvince = request.addressProvince();
+        employee.addressCity = request.addressCity();
+        employee.addressDistrict = request.addressDistrict();
         employee.address = request.address();
         employee.phone = request.phone();
+        employee.photo = request.photo();
         employee.departmentId = request.departmentId();
         employee.managerId = request.managerId();
         employee.jobTitle = request.jobTitle();
@@ -122,8 +128,12 @@ public class EmployeeController {
                 employee.gender,
                 employee.dateOfBirth,
                 employee.marriedStatus,
+                employee.addressProvince,
+                employee.addressCity,
+                employee.addressDistrict,
                 employee.address,
                 employee.phone,
+                employee.photo,
                 employee.departmentId,
                 employee.managerId,
                 employee.jobTitle,
@@ -145,8 +155,14 @@ public class EmployeeController {
             @NotNull GenderType gender,
             @NotNull LocalDate dateOfBirth,
             MarriedStatus marriedStatus,
+            String addressProvince,
+            String addressCity,
+            String addressDistrict,
             String address,
-            @NotBlank String phone,
+            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
+            @Size(max = 30000000, message = "Photo must be 20MB or smaller")
+            @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Photo must be an uploaded image file")
+            String photo,
             UUID departmentId,
             UUID managerId,
             String jobTitle,
@@ -158,7 +174,7 @@ public class EmployeeController {
 
     public record EmergencyContactRequest(
             @NotBlank String fullName,
-            @NotBlank String phone,
+            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
             @NotBlank String relation) {
     }
 
@@ -169,8 +185,12 @@ public class EmployeeController {
             GenderType gender,
             LocalDate dateOfBirth,
             MarriedStatus marriedStatus,
+            String addressProvince,
+            String addressCity,
+            String addressDistrict,
             String address,
             String phone,
+            String photo,
             UUID departmentId,
             UUID managerId,
             String jobTitle,
