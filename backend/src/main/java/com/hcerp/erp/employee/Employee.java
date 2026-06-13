@@ -23,6 +23,7 @@ public class Employee {
     public UUID id;
     public String employeeNo;
     public String fullName;
+    public String idCardNumber;
     @Enumerated(EnumType.STRING)
     public GenderType gender;
     public LocalDate dateOfBirth;

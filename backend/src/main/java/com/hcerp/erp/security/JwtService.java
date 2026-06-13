@@ -34,6 +34,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("accountId", user.accountId().toString())
+                .claim("passwordVersion", user.account().passwordVersion == null ? 0 : user.account().passwordVersion)
                 .claim("authorities", authorities)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationMinutes * 60)))
@@ -47,6 +48,10 @@ public class JwtService {
 
     public UUID accountId(String token) {
         return UUID.fromString(claims(token).get("accountId", String.class));
+    }
+
+    public Integer passwordVersion(String token) {
+        return claims(token).get("passwordVersion", Integer.class);
     }
 
     private Claims claims(String token) {

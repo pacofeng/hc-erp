@@ -1,6 +1,9 @@
+import packageJson from "../../package.json";
+
 export const API_BASE =
   import.meta.env.VITE_API_BASE ?? "http://localhost:8080/api";
 export const LOGO_SRC = "/images/logo.png";
+export const ERP_VERSION = `v${packageJson.version}`;
 
 export const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const IMAGE_UPLOAD_ACCEPT =
@@ -24,6 +27,7 @@ export const POST_LOGIN_RESOURCE_KEY = "hcerp-post-login-resource";
 export const AUTH_EXPIRED_EVENT = "hcerp-auth-expired";
 export const USER_ACTIVITY_EVENT = "hcerp-user-activity";
 export const LOGIN_PATH = "/login";
+export const SECURITY_QUESTIONS_PATH = "/security-questions";
 
 export const dateOnlyColumns = new Set([
   "dateOfBirth",

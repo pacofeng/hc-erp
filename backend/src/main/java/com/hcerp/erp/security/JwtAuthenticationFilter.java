@@ -33,6 +33,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtService.username(token);
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     ErpUserDetails user = (ErpUserDetails) userDetailsService.loadUserByUsername(username);
+                    Integer tokenPasswordVersion = jwtService.passwordVersion(token);
+                    Integer accountPasswordVersion = user.account().passwordVersion == null
+                            ? 0
+                            : user.account().passwordVersion;
+                    if (!accountPasswordVersion.equals(tokenPasswordVersion)) {
+                        throw new IllegalArgumentException("Token was issued before password change");
+                    }
                     var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }

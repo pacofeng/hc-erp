@@ -94,6 +94,7 @@ public class EmployeeController {
     private void apply(Employee employee, EmployeeRequest request) {
         employee.employeeNo = request.employeeNo();
         employee.fullName = request.fullName();
+        employee.idCardNumber = request.idCardNumber();
         employee.gender = request.gender();
         employee.dateOfBirth = request.dateOfBirth();
         employee.marriedStatus = request.marriedStatus();
@@ -125,6 +126,7 @@ public class EmployeeController {
                 employee.id,
                 employee.employeeNo,
                 employee.fullName,
+                employee.idCardNumber,
                 employee.gender,
                 employee.dateOfBirth,
                 employee.marriedStatus,
@@ -152,6 +154,7 @@ public class EmployeeController {
     public record EmployeeRequest(
             @NotBlank String employeeNo,
             @NotBlank String fullName,
+            @NotBlank @Size(max = 18) String idCardNumber,
             @NotNull GenderType gender,
             @NotNull LocalDate dateOfBirth,
             MarriedStatus marriedStatus,
@@ -182,6 +185,7 @@ public class EmployeeController {
             UUID id,
             String employeeNo,
             String fullName,
+            String idCardNumber,
             GenderType gender,
             LocalDate dateOfBirth,
             MarriedStatus marriedStatus,

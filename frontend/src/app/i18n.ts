@@ -38,6 +38,23 @@ export const messages = {
     saveFailed: "Save failed",
     deleteFailed: "Delete failed",
     passwordRequired: "Password is required for new accounts",
+    forgotPassword: "Forgot Password?",
+    forgotPasswordTitle: "Forgot Password",
+    securityQuestionSetupTitle: "Security Questions",
+    securityQuestionSetupMessage:
+      "Please answer at least 3 security questions before continuing.",
+    securityQuestion: "Security Question",
+    securityAnswer: "Answer",
+    getSecurityQuestions: "Continue",
+    verifyAnswers: "Verify Answers",
+    resetPassword: "Reset Password",
+    newPassword: "New Password",
+    confirmPassword: "Confirm Password",
+    passwordResetSuccess: "Password has been reset. Please sign in again.",
+    passwordStrengthHint:
+      "Use at least 8 characters with letters, numbers, and special characters.",
+    passwordsDoNotMatch: "Passwords do not match",
+    securityQuestionsSaved: "Security questions saved",
     inactivityWarningTitle: "Session timeout warning",
     inactivityWarningMessage:
       "You will be logged out in 1 minute due to inactivity.",
@@ -59,7 +76,7 @@ export const messages = {
     updateEmployee: "Update Employee",
     accountInfo: "Account Info",
     personalInfo: "Personal Info",
-    addressInfo: "Address",
+    addressInfo: "Current Address",
     emergencyContact: "Emergency Contact",
     employmentInfo: "Employment Info",
     resources: {
@@ -71,9 +88,30 @@ export const messages = {
       permissions: "Permissions",
       settings: "Settings",
     },
+    securityQuestionLabels: {
+      "What city were you born in?": "What city were you born in?",
+      "What was the name of your first school?":
+        "What was the name of your first school?",
+      "What was your childhood nickname?": "What was your childhood nickname?",
+      "What is your oldest sibling's first name?":
+        "What is your oldest sibling's first name?",
+      "What was your first pet's name?": "What was your first pet's name?",
+      "In what city did your parents meet?":
+        "In what city did your parents meet?",
+      "What was your favorite food as a child?":
+        "What was your favorite food as a child?",
+      "What is your favorite book or movie?":
+        "What is your favorite book or movie?",
+      "Who is your favorite teacher?": "Who is your favorite teacher?",
+      "What year did you graduate high school?":
+        "What year did you graduate high school?",
+      "What is the name of the hospital where you were born?":
+        "What is the name of the hospital where you were born?",
+    },
     fields: {
       employeeNo: "Employee No",
       fullName: "Full Name",
+      idCardNumber: "ID Card Number",
       gender: "Gender",
       dateOfBirth: "Date of Birth",
       marriedStatus: "Marital Status",
@@ -146,6 +184,22 @@ export const messages = {
     saveFailed: "保存失败",
     deleteFailed: "删除失败",
     passwordRequired: "新账号必须设置密码",
+    forgotPassword: "忘记密码？",
+    forgotPasswordTitle: "忘记密码",
+    securityQuestionSetupTitle: "设置安全问题",
+    securityQuestionSetupMessage:
+      "请先回答至少 3 个安全问题，然后继续使用系统。",
+    securityQuestion: "安全问题",
+    securityAnswer: "答案",
+    getSecurityQuestions: "继续",
+    verifyAnswers: "验证答案",
+    resetPassword: "重置密码",
+    newPassword: "新密码",
+    confirmPassword: "确认密码",
+    passwordResetSuccess: "密码已重置，请重新登录。",
+    passwordStrengthHint: "至少 8 位，并包含字母、数字和特殊字符。",
+    passwordsDoNotMatch: "两次输入的密码不一致",
+    securityQuestionsSaved: "安全问题已保存",
     inactivityWarningTitle: "会话即将超时",
     inactivityWarningMessage:
       "由于长时间未操作，系统将在 1 分钟后自动退出登录。",
@@ -167,7 +221,7 @@ export const messages = {
     updateEmployee: "更新员工",
     accountInfo: "账号信息",
     personalInfo: "个人信息",
-    addressInfo: "地址信息",
+    addressInfo: "现居地址",
     emergencyContact: "紧急联系人",
     employmentInfo: "雇佣信息",
     resources: {
@@ -179,9 +233,25 @@ export const messages = {
       permissions: "权限",
       settings: "设置",
     },
+    securityQuestionLabels: {
+      "What city were you born in?": "您出生在哪个城市？",
+      "What was the name of your first school?": "您的第一所学校叫什么名字？",
+      "What was your childhood nickname?": "您小时候的昵称是什么？",
+      "What is your oldest sibling's first name?":
+        "您最大的兄弟姐妹叫什么名字？",
+      "What was your first pet's name?": "您的第一只宠物叫什么名字？",
+      "In what city did your parents meet?": "您的父母在哪个城市相识？",
+      "What was your favorite food as a child?": "您小时候最喜欢的食物是什么？",
+      "What is your favorite book or movie?": "您最喜欢的书或电影是什么？",
+      "Who is your favorite teacher?": "您最喜欢的老师是谁？",
+      "What year did you graduate high school?": "您是哪一年高中毕业的？",
+      "What is the name of the hospital where you were born?":
+        "您出生的医院叫什么名字？",
+    },
     fields: {
       employeeNo: "员工编号",
       fullName: "姓名",
+      idCardNumber: "身份证号码",
       gender: "性别",
       dateOfBirth: "出生日期",
       marriedStatus: "婚姻状态",
@@ -227,5 +297,5 @@ export function getPreferredLanguage(session?: Session | null): Language {
   if (session?.language === "zh-CN" || session?.language === "en")
     return session.language;
   if (stored === "zh-CN" || stored === "en") return stored;
-  return "en";
+  return "zh-CN";
 }

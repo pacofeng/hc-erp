@@ -15,6 +15,7 @@ export const employeeFormSections = [
     fields: [
       "photo",
       "fullName",
+      "idCardNumber",
       "gender",
       "dateOfBirth",
       "marriedStatus",
@@ -47,6 +48,17 @@ export const employeeFormSections = [
   },
 ] as const;
 
+export const newEmployeeFormSections = employeeFormSections.map((section) =>
+  section.titleKey === "employmentInfo"
+    ? {
+        ...section,
+        fields: section.fields.filter(
+          (field) => field !== "terminationDate" && field !== "status",
+        ),
+      }
+    : section,
+);
+
 export const settingsFormSections = [
   {
     titleKey: "accountInfo",
@@ -54,7 +66,14 @@ export const settingsFormSections = [
   },
   {
     titleKey: "personalInfo",
-    fields: ["fullName", "gender", "dateOfBirth", "marriedStatus", "phone"],
+    fields: [
+      "fullName",
+      "idCardNumber",
+      "gender",
+      "dateOfBirth",
+      "marriedStatus",
+      "phone",
+    ],
   },
   {
     titleKey: "addressInfo",
@@ -88,6 +107,7 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
     fields: [
       { name: "employeeNo", required: true },
       { name: "fullName", required: true },
+      { name: "idCardNumber", required: true },
       { name: "gender", options: ["MALE", "FEMALE"] },
       { name: "dateOfBirth", type: "date", required: true },
       {
@@ -169,6 +189,7 @@ export const settingsFields: Field[] = [
   { name: "username", readOnly: true },
   { name: "avatar" },
   { name: "fullName", required: true, readOnly: true },
+  { name: "idCardNumber", readOnly: true },
   { name: "gender", options: ["MALE", "FEMALE"], readOnly: true },
   { name: "dateOfBirth", type: "date", required: true, readOnly: true },
   {

@@ -18,6 +18,7 @@ import {
   Divider,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
   ListItemText,
   MenuItem,
@@ -40,6 +41,7 @@ import {
 } from "@mui/x-data-grid";
 import {
   AUTH_EXPIRED_EVENT,
+  ERP_VERSION,
   IMAGE_UPLOAD_ACCEPT,
   IMAGE_UPLOAD_TYPES,
   INACTIVITY_TIMEOUT_MS,
@@ -50,6 +52,7 @@ import {
   MAX_IMAGE_UPLOAD_BYTES,
   POST_LOGIN_RESOURCE_KEY,
   RESOURCE_STORAGE_KEY,
+  SECURITY_QUESTIONS_PATH,
   USER_ACTIVITY_EVENT,
   dateOnlyColumns,
   pageSizeOptions,
@@ -74,6 +77,7 @@ import {
 import {
   employeeFormSections,
   employeeTableColumns,
+  newEmployeeFormSections,
   schemas,
   settingsFields,
   settingsFormSections,
@@ -98,6 +102,8 @@ import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import SecurityIcon from "@mui/icons-material/Security";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 function App() {
   const [session, setSession] = useState<Session | null>(() => {
@@ -151,10 +157,23 @@ function App() {
       localStorage.setItem("hcerp-session", JSON.stringify(next));
       sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
       localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
-      navigate(resourcePath("dashboard"), true);
+      navigate(
+        next.securityQuestionsConfigured
+          ? resourcePath("dashboard")
+          : SECURITY_QUESTIONS_PATH,
+        true,
+      );
     } else {
       localStorage.removeItem("hcerp-session");
       navigate(LOGIN_PATH, true);
+    }
+  }
+
+  function updateSession(next: Session) {
+    setSession(next);
+    localStorage.setItem("hcerp-session", JSON.stringify(next));
+    if (next.securityQuestionsConfigured) {
+      navigate(resourcePath("dashboard"), true);
     }
   }
 
@@ -285,6 +304,18 @@ function App() {
       return;
     }
 
+    if (!session.securityQuestionsConfigured) {
+      if (window.location.pathname !== SECURITY_QUESTIONS_PATH) {
+        navigate(SECURITY_QUESTIONS_PATH, true);
+      }
+      return;
+    }
+
+    if (window.location.pathname === SECURITY_QUESTIONS_PATH) {
+      navigate(resourcePath("dashboard"), true);
+      return;
+    }
+
     if (window.location.pathname === LOGIN_PATH || !getResourceFromPath()) {
       navigate(resourcePath(getStoredResource()), true);
     }
@@ -294,58 +325,80 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       {session ? (
-        <>
-          <Shell
+        !session.securityQuestionsConfigured ? (
+          <SecurityQuestionSetup
             session={session}
             language={language}
             t={t}
             onLanguageChange={saveLanguage}
+            onSaved={() =>
+              updateSession({ ...session, securityQuestionsConfigured: true })
+            }
             onLogout={() => saveSession(null)}
           />
-          <Dialog open={showInactivityWarning} maxWidth="xs" fullWidth>
-            <DialogTitle>{t.inactivityWarningTitle}</DialogTitle>
-            <DialogContent>
-              <Typography variant="body2">
-                {t.inactivityWarningMessage}
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 2, fontWeight: 700 }}>
-                {inactivityCountdown}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {t.inactivityCountdown}
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => saveSession(null)}>{t.signOut}</Button>
-              <Button
-                variant="contained"
-                onClick={() =>
-                  window.dispatchEvent(new Event(USER_ACTIVITY_EVENT))
-                }
-              >
-                {t.staySignedIn}
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </>
+        ) : (
+          <>
+            <Shell
+              session={session}
+              language={language}
+              t={t}
+              onLanguageChange={saveLanguage}
+              onLogout={() => saveSession(null)}
+            />
+            <Dialog open={showInactivityWarning} maxWidth="xs" fullWidth>
+              <DialogTitle>{t.inactivityWarningTitle}</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2">
+                  {t.inactivityWarningMessage}
+                </Typography>
+                <Typography variant="h4" sx={{ mt: 2, fontWeight: 700 }}>
+                  {inactivityCountdown}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t.inactivityCountdown}
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => saveSession(null)}>{t.signOut}</Button>
+                <Button
+                  variant="contained"
+                  onClick={() =>
+                    window.dispatchEvent(new Event(USER_ACTIVITY_EVENT))
+                  }
+                >
+                  {t.staySignedIn}
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </>
+        )
       ) : (
-        <Login language={language} t={t} onLogin={saveSession} />
+        <Login
+          language={language}
+          t={t}
+          onLanguageChange={saveLanguage}
+          onLogin={saveSession}
+        />
       )}
     </ThemeProvider>
   );
 }
 
 function Login({
+  language,
   t,
+  onLanguageChange,
   onLogin,
 }: {
   language: Language;
   t: Translation;
+  onLanguageChange: (language: Language) => Promise<void>;
   onLogin: (session: Session) => void;
 }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -355,52 +408,50 @@ function Login({
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-      onLogin(result);
+      const sessionWithSelectedLanguage = { ...result, language };
+      if (result.language !== language) {
+        void api("/auth/language", sessionWithSelectedLanguage, {
+          method: "PUT",
+          body: JSON.stringify({ language }),
+        });
+      }
+      onLogin(sessionWithSelectedLanguage);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loginFailed);
     }
   }
 
   return (
-    <Box
-      sx={{ minHeight: "100vh", display: "grid", placeItems: "center", px: 2 }}
+    <PublicPageShell
+      language={language}
+      t={t}
+      onLanguageChange={onLanguageChange}
     >
-      <Paper
-        component="form"
-        onSubmit={submit}
-        sx={{ width: "100%", maxWidth: 420, p: 3 }}
-      >
+      <Paper component="form" onSubmit={submit} sx={{ width: "100%", p: 3 }}>
         <Stack spacing={2.5}>
-          <Box>
-            <Box
-              component="img"
-              src={LOGO_SRC}
-              alt="Hengchang Machinery"
-              sx={{
-                display: "block",
-                width: "100%",
-                maxWidth: 330,
-                height: "auto",
-                mb: 1,
-              }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              {t.signInSubtitle}
-            </Typography>
-          </Box>
           <TextField
             label={t.username}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             required
           />
-          <TextField
+          <PasswordTextField
             label={t.password}
-            type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={setPassword}
+            autoComplete="current-password"
             required
           />
+          <Box sx={{ mt: -1 }}>
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => setForgotOpen(true)}
+              sx={{ px: 0 }}
+            >
+              {t.forgotPassword}
+            </Button>
+          </Box>
           {error && (
             <Typography color="error" variant="body2">
               {error}
@@ -414,8 +465,485 @@ function Login({
             {t.signIn}
           </Button>
         </Stack>
+        <ForgotPasswordDialog
+          open={forgotOpen}
+          initialUsername={username}
+          t={t}
+          onClose={() => setForgotOpen(false)}
+        />
       </Paper>
+    </PublicPageShell>
+  );
+}
+
+function PublicPageShell({
+  language,
+  t,
+  onLanguageChange,
+  maxWidth = 420,
+  children,
+}: {
+  language: Language;
+  t: Translation;
+  onLanguageChange: (language: Language) => Promise<void>;
+  maxWidth?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <PublicTopBar
+        language={language}
+        t={t}
+        onLanguageChange={onLanguageChange}
+      />
+      <Box
+        sx={{
+          minHeight: "calc(100vh - 121px)",
+          display: "grid",
+          placeItems: "center",
+          px: 2,
+          py: 4,
+        }}
+      >
+        <Box sx={{ width: "100%", maxWidth }}>{children}</Box>
+      </Box>
+      <AppFooter />
     </Box>
+  );
+}
+
+function PublicTopBar({
+  language,
+  t,
+  onLanguageChange,
+}: {
+  language: Language;
+  t: Translation;
+  onLanguageChange: (language: Language) => Promise<void>;
+}) {
+  return (
+    <AppBar
+      position="sticky"
+      color="inherit"
+      elevation={0}
+      sx={{ borderBottom: "1px solid #dde3dc" }}
+    >
+      <Toolbar>
+        <Box sx={{ flex: 1 }}>
+          <Box
+            component="img"
+            src={LOGO_SRC}
+            alt="Hengchang Machinery"
+            sx={{
+              display: "block",
+              width: { xs: 190, sm: 260 },
+              maxWidth: "100%",
+              height: "auto",
+            }}
+          />
+        </Box>
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>{t.language}</InputLabel>
+          <Select
+            label={t.language}
+            value={language}
+            onChange={(event) =>
+              void onLanguageChange(event.target.value as Language)
+            }
+          >
+            <MenuItem value="zh-CN">简体中文</MenuItem>
+            <MenuItem value="en">English</MenuItem>
+          </Select>
+        </FormControl>
+      </Toolbar>
+    </AppBar>
+  );
+}
+
+function AppFooter() {
+  return (
+    <Box
+      component="footer"
+      sx={{
+        borderTop: "1px solid #dde3dc",
+        color: "text.secondary",
+        px: 2,
+        py: 1.5,
+        textAlign: "left",
+      }}
+    >
+      <Typography variant="caption">ERP {ERP_VERSION}</Typography>
+    </Box>
+  );
+}
+
+function PasswordTextField({
+  label,
+  value,
+  onChange,
+  required,
+  autoComplete,
+  fullWidth = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  autoComplete?: string;
+  fullWidth?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <TextField
+      fullWidth={fullWidth}
+      label={label}
+      type={visible ? "text" : "password"}
+      value={value}
+      required={required}
+      autoComplete={autoComplete}
+      onChange={(event) => onChange(event.target.value)}
+      slotProps={{
+        input: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                edge="end"
+                onClick={() => setVisible((current) => !current)}
+                onMouseDown={(event) => event.preventDefault()}
+                aria-label={visible ? "Hide password" : "Show password"}
+              >
+                {visible ? <VisibilityOffIcon /> : <VisibilityIcon />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  );
+}
+
+function SecurityQuestionSetup({
+  session,
+  language,
+  t,
+  onLanguageChange,
+  onSaved,
+  onLogout,
+}: {
+  session: Session;
+  language: Language;
+  t: Translation;
+  onLanguageChange: (language: Language) => Promise<void>;
+  onSaved: () => void;
+  onLogout: () => void;
+}) {
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [answers, setAnswers] = useState([
+    { question: "", answer: "" },
+    { question: "", answer: "" },
+    { question: "", answer: "" },
+  ]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    void api<{ questions: string[] }>("/auth/security-questions/options")
+      .then((result) => {
+        setQuestions(result.questions);
+        setAnswers((current) =>
+          current.map((item, index) => ({
+            ...item,
+            question: result.questions[index] ?? item.question,
+          })),
+        );
+      })
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : t.loadFailed),
+      );
+  }, [t.loadFailed]);
+
+  async function save() {
+    setError("");
+    const selectedQuestions = answers.map((answer) => answer.question);
+    if (
+      answers.some((answer) => !answer.question || !answer.answer.trim()) ||
+      new Set(selectedQuestions).size < 3
+    ) {
+      setError(t.securityQuestionSetupMessage);
+      return;
+    }
+    try {
+      await api("/auth/security-questions", session, {
+        method: "PUT",
+        body: JSON.stringify({ answers }),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.saveFailed);
+    }
+  }
+
+  return (
+    <PublicPageShell
+      language={language}
+      t={t}
+      onLanguageChange={onLanguageChange}
+      maxWidth={720}
+    >
+      <Paper sx={{ width: "100%", p: 3 }}>
+        <Stack spacing={2.5}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {t.securityQuestionSetupTitle}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t.securityQuestionSetupMessage}
+            </Typography>
+          </Box>
+          {answers.map((answer, index) => (
+            <Stack key={index} spacing={1.5}>
+              <FormControl fullWidth>
+                <InputLabel>{t.securityQuestion}</InputLabel>
+                <Select
+                  label={t.securityQuestion}
+                  value={answer.question}
+                  onChange={(event) =>
+                    setAnswers((current) =>
+                      current.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? { ...item, question: event.target.value }
+                          : item,
+                      ),
+                    )
+                  }
+                >
+                  {questions.map((question) => (
+                    <MenuItem
+                      key={question}
+                      value={question}
+                      disabled={answers.some(
+                        (item, itemIndex) =>
+                          itemIndex !== index && item.question === question,
+                      )}
+                    >
+                      {securityQuestionLabel(t, question)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                label={t.securityAnswer}
+                value={answer.answer}
+                onChange={(event) =>
+                  setAnswers((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, answer: event.target.value }
+                        : item,
+                    ),
+                  )
+                }
+              />
+            </Stack>
+          ))}
+          {error && (
+            <Typography color="error" variant="body2">
+              {error}
+            </Typography>
+          )}
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            <Button onClick={onLogout}>{t.signOut}</Button>
+            <Button variant="contained" onClick={save} startIcon={<SaveIcon />}>
+              {t.save}
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
+    </PublicPageShell>
+  );
+}
+
+function ForgotPasswordDialog({
+  open,
+  initialUsername,
+  t,
+  onClose,
+}: {
+  open: boolean;
+  initialUsername: string;
+  t: Translation;
+  onClose: () => void;
+}) {
+  const [username, setUsername] = useState(initialUsername);
+  const [question, setQuestion] = useState("");
+  const [questionIndex, setQuestionIndex] = useState<number | null>(null);
+  const [answer, setAnswer] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setUsername(initialUsername);
+    setQuestion("");
+    setQuestionIndex(null);
+    setAnswer("");
+    setResetToken("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setSuccess("");
+    setError("");
+  }, [open, initialUsername]);
+
+  async function loadQuestions() {
+    setError("");
+    setSuccess("");
+    try {
+      const result = await api<{ questionIndex: number; question: string }>(
+        "/auth/forgot-password/questions",
+        undefined,
+        {
+          method: "POST",
+          body: JSON.stringify({ username }),
+        },
+      );
+      setQuestion(result.question);
+      setQuestionIndex(result.questionIndex);
+      setAnswer("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    }
+  }
+
+  async function verifyAnswers() {
+    setError("");
+    if (questionIndex === null) return;
+    try {
+      const result = await api<{ resetToken: string }>(
+        "/auth/forgot-password/verify",
+        undefined,
+        {
+          method: "POST",
+          body: JSON.stringify({ username, questionIndex, answer }),
+        },
+      );
+      setResetToken(result.resetToken);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.saveFailed);
+    }
+  }
+
+  async function resetPassword() {
+    setError("");
+    if (!isStrongPassword(newPassword)) {
+      setError(t.passwordStrengthHint);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t.passwordsDoNotMatch);
+      return;
+    }
+    try {
+      await api("/auth/forgot-password/reset", undefined, {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          resetToken,
+          newPassword,
+          confirmPassword,
+        }),
+      });
+      setSuccess(t.passwordResetSuccess);
+      setResetToken("");
+      setQuestion("");
+      setQuestionIndex(null);
+      setAnswer("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.saveFailed);
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{t.forgotPasswordTitle}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField
+            label={t.username}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            disabled={Boolean(resetToken)}
+            required
+          />
+          {question && !resetToken && (
+            <TextField
+              label={securityQuestionLabel(t, question)}
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+            />
+          )}
+          {resetToken && (
+            <>
+              <PasswordTextField
+                label={t.newPassword}
+                value={newPassword}
+                onChange={setNewPassword}
+                autoComplete="new-password"
+              />
+              <PasswordTextField
+                label={t.confirmPassword}
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                autoComplete="new-password"
+              />
+              <Typography variant="caption" color="text.secondary">
+                {t.passwordStrengthHint}
+              </Typography>
+            </>
+          )}
+          {error && (
+            <Typography color="error" variant="body2">
+              {error}
+            </Typography>
+          )}
+          {success && (
+            <Typography color="success.main" variant="body2">
+              {success}
+            </Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t.close}</Button>
+        {!question && !success && (
+          <Button variant="contained" onClick={loadQuestions}>
+            {t.getSecurityQuestions}
+          </Button>
+        )}
+        {question && !resetToken && (
+          <Button variant="contained" onClick={verifyAnswers}>
+            {t.verifyAnswers}
+          </Button>
+        )}
+        {resetToken && (
+          <Button variant="contained" onClick={resetPassword}>
+            {t.resetPassword}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -512,8 +1040,8 @@ function Shell({
                   void onLanguageChange(event.target.value as Language)
                 }
               >
-                <MenuItem value="en">{t.english}</MenuItem>
-                <MenuItem value="zh-CN">{t.simplifiedChinese}</MenuItem>
+                <MenuItem value="zh-CN">简体中文</MenuItem>
+                <MenuItem value="en">English</MenuItem>
               </Select>
             </FormControl>
             <Chip label={session.username} size="small" />
@@ -531,6 +1059,7 @@ function Shell({
           gridTemplateColumns: { xs: "1fr", md: "220px 1fr" },
           gap: 2,
           p: 2,
+          flex: 1,
         }}
       >
         <Paper sx={{ p: 1, alignSelf: "start" }}>
@@ -566,6 +1095,7 @@ function Shell({
           />
         )}
       </Box>
+      <AppFooter />
     </Box>
   );
 }
@@ -1115,7 +1645,7 @@ function EditDialog({
         <Stack spacing={2} sx={{ pt: 1 }}>
           {resource === "employees" ? (
             <FormSections
-              sections={employeeFormSections}
+              sections={row.id ? employeeFormSections : newEmployeeFormSections}
               fields={schema.fields}
               form={form}
               setForm={setForm}
@@ -1217,8 +1747,7 @@ function FormSections({
             {section.fields.map((fieldName) => {
               const field = fieldByName.get(fieldName);
               if (!field) return null;
-              const shouldSpan =
-                isImageUploadField(fieldName) || fieldName === "address";
+              const shouldSpan = isImageUploadField(fieldName);
 
               return (
                 <Box
@@ -1417,8 +1946,17 @@ function defaultRow(fields: Field[], resource?: string): AnyRow {
     });
     return row;
   }
+  if (resource === "employees") {
+    row = setFieldValue(row, "status", "ACTIVE");
+  }
   fields.forEach((field) => {
-    row = setFieldValue(row, field.name, field.options?.[0] ?? "");
+    row = setFieldValue(
+      row,
+      field.name,
+      field.name === "status" && resource === "employees"
+        ? "ACTIVE"
+        : (field.options?.[0] ?? ""),
+    );
   });
   return row;
 }
@@ -1474,6 +2012,15 @@ function isPhoneField(fieldName: string) {
 
 function isValidPhoneValue(value: unknown) {
   return /^\d{11}$/.test(String(value ?? ""));
+}
+
+function isStrongPassword(value: string) {
+  return (
+    value.length >= 8 &&
+    /[A-Za-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
 }
 
 function isImageUploadField(fieldName: string) {
@@ -1687,6 +2234,7 @@ function renderField(
 
   const value = String(getFieldValue(form, field.name) ?? "");
   const isPhone = isPhoneField(field.name);
+  const isIdCardNumber = field.name === "idCardNumber";
   const showPhoneError = isPhone && value !== "" && !isValidPhoneValue(value);
   const slotProps = {
     ...(field.type === "date" ? { inputLabel: { shrink: true } } : {}),
@@ -1699,7 +2247,32 @@ function renderField(
           },
         }
       : {}),
+    ...(isIdCardNumber
+      ? {
+          htmlInput: {
+            maxLength: 18,
+          },
+        }
+      : {}),
   };
+
+  if (field.type === "password") {
+    return (
+      <PasswordTextField
+        key={field.name}
+        label={formFieldLabel(resource, t, field.name)}
+        value={value}
+        required={
+          field.required &&
+          !(resource === "accounts" && field.name === "password" && currentRowId)
+        }
+        autoComplete="new-password"
+        onChange={(nextValue) =>
+          setForm((current) => setFieldValue(current, field.name, nextValue))
+        }
+      />
+    );
+  }
 
   return (
     <TextField
@@ -1715,6 +2288,8 @@ function renderField(
       onChange={(event) => {
         const nextValue = isPhone
           ? event.target.value.replace(/\D/g, "").slice(0, 11)
+          : isIdCardNumber
+            ? event.target.value.slice(0, 18)
           : event.target.value;
         setForm((current) => setFieldValue(current, field.name, nextValue));
       }}
@@ -2219,6 +2794,14 @@ function formFieldLabel(resource: string, t: Translation, key: string) {
     return fieldLabel(t, key.replace("emergencyContact.", ""));
   }
   return fieldLabel(t, key);
+}
+
+function securityQuestionLabel(t: Translation, question: string) {
+  return (
+    t.securityQuestionLabels[
+      question as keyof typeof t.securityQuestionLabels
+    ] ?? question
+  );
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

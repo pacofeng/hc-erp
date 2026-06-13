@@ -39,6 +39,7 @@ public class DataInitializer {
             Employee employee = new Employee();
             employee.employeeNo = "EMP-0001";
             employee.fullName = "System Admin";
+            employee.idCardNumber = "000000000000000001";
             employee.gender = GenderType.MALE;
             employee.dateOfBirth = LocalDate.of(1970, 1, 1);
             employee.phone = "13800000000";

@@ -62,6 +62,7 @@ public class AccountController {
         if (request.password() != null && !request.password().isBlank()) {
             account.passwordHash = passwordEncoder.encode(request.password());
             account.passwordChangedAt = OffsetDateTime.now();
+            account.passwordVersion = account.passwordVersion == null ? 1 : account.passwordVersion + 1;
         }
         return AccountView.from(accounts.save(account));
     }
@@ -108,11 +109,11 @@ public class AccountController {
 
     public record AccountView(UUID id, UUID employeeId, String username, AccountStatus status, AccountType accountType,
                               Integer failedLoginCount, Boolean mustChangePassword, String preferredLanguage,
-                              String avatar, OffsetDateTime lastLoginAt) {
+                              String avatar, Boolean securityQuestionsConfigured, OffsetDateTime lastLoginAt) {
         static AccountView from(Account account) {
             return new AccountView(account.id, account.employeeId, account.username, account.status, account.accountType,
                     account.failedLoginCount, account.mustChangePassword, account.preferredLanguage,
-                    account.avatar, account.lastLoginAt);
+                    account.avatar, account.securityQuestionsConfigured, account.lastLoginAt);
         }
     }
 }
