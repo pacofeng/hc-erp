@@ -134,7 +134,7 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   departments: {
     label: "Departments",
     fields: [
-      { name: "code", options: ["ADMIN", "HR"] },
+      { name: "code", options: ["SYS", "HR"] },
       { name: "name", required: true },
       { name: "managerId" },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },

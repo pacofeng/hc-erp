@@ -1,5 +1,0 @@
-ALTER TABLE employees
-    ADD COLUMN IF NOT EXISTS photo TEXT;
-
-ALTER TABLE accounts
-    ADD COLUMN IF NOT EXISTS avatar TEXT;

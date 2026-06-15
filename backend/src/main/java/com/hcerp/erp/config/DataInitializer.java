@@ -45,7 +45,7 @@ public class DataInitializer {
             employee.phone = "13800000000";
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()
-                    .filter(d -> d.code == DepartmentCode.ADMIN)
+                    .filter(d -> d.code == DepartmentCode.SYS)
                     .findFirst()
                     .map(d -> d.id)
                     .orElse(null);
