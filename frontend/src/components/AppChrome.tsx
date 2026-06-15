@@ -1,53 +1,38 @@
 import { useState, type ReactNode } from "react";
-import {
-  AppBar,
-  Box,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-  Toolbar,
-  Typography,
-} from "@mui/material";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import { IconButton } from "@/components/ui/button";
+import { FormControl } from "@/components/ui/form";
+import { InputAdornment, TextField } from "@/components/ui/input";
+import { AppBar, Box, Toolbar } from "@/components/ui/layout";
+import { MenuItem, Select } from "@/components/ui/select";
+import { Typography } from "@/components/ui/typography";
+import { Eye, EyeOff } from "lucide-react";
 import { ERP_VERSION, LOGO_SRC } from "../app/constants";
 import type { Language } from "../app/types";
 import type { Translation } from "../app/i18n";
+import { cn } from "../lib/utils";
 
 export function PublicPageShell({
   language,
   t,
   onLanguageChange,
-  maxWidth = 420,
+  maxWidthClassName = "max-w-[420px]",
   children,
 }: {
   language: Language;
   t: Translation;
   onLanguageChange: (language: Language) => Promise<void>;
-  maxWidth?: number;
+  maxWidthClassName?: string;
   children: ReactNode;
 }) {
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box className="min-h-screen bg-background">
       <PublicTopBar
         language={language}
         t={t}
         onLanguageChange={onLanguageChange}
       />
-      <Box
-        sx={{
-          minHeight: "calc(100vh - 121px)",
-          display: "grid",
-          placeItems: "center",
-          px: 2,
-          py: 4,
-        }}
-      >
-        <Box sx={{ width: "100%", maxWidth }}>{children}</Box>
+      <Box className="grid min-h-[calc(100vh-121px)] place-items-center px-4 py-8">
+        <Box className={cn("w-full", maxWidthClassName)}>{children}</Box>
       </Box>
       <AppFooter />
     </Box>
@@ -64,30 +49,18 @@ export function PublicTopBar({
   onLanguageChange: (language: Language) => Promise<void>;
 }) {
   return (
-    <AppBar
-      position="sticky"
-      color="inherit"
-      elevation={0}
-      sx={{ borderBottom: "1px solid #dde3dc" }}
-    >
+    <AppBar position="sticky" color="inherit" elevation={0}>
       <Toolbar>
-        <Box sx={{ flex: 1 }}>
+        <Box className="flex-1">
           <Box
             component="img"
             src={LOGO_SRC}
             alt="Hengchang Machinery"
-            sx={{
-              display: "block",
-              width: { xs: 190, sm: 260 },
-              maxWidth: "100%",
-              height: "auto",
-            }}
+            className="block h-auto w-[190px] max-w-full sm:w-[260px]"
           />
         </Box>
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>{t.language}</InputLabel>
+        <FormControl size="small" className="min-w-[150px]">
           <Select
-            label={t.language}
             value={language}
             onChange={(event) =>
               void onLanguageChange(event.target.value as Language)
@@ -106,17 +79,7 @@ export function AppFooter() {
   return (
     <Box
       component="footer"
-      sx={{
-        position: "sticky",
-        bottom: 0,
-        zIndex: 10,
-        borderTop: "1px solid #dde3dc",
-        bgcolor: "background.default",
-        color: "text.secondary",
-        px: 2,
-        py: 1.5,
-        textAlign: "left",
-      }}
+      className="sticky bottom-0 z-10 border-t border-border bg-background px-4 py-3 text-left text-muted-foreground"
     >
       <Typography variant="caption">ERP {ERP_VERSION}</Typography>
     </Box>
@@ -130,6 +93,8 @@ export function PasswordTextField({
   required,
   autoComplete,
   fullWidth = true,
+  error,
+  helperText,
 }: {
   label: string;
   value: string;
@@ -137,6 +102,8 @@ export function PasswordTextField({
   required?: boolean;
   autoComplete?: string;
   fullWidth?: boolean;
+  error?: boolean;
+  helperText?: ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -147,6 +114,8 @@ export function PasswordTextField({
       type={visible ? "text" : "password"}
       value={value}
       required={required}
+      error={error}
+      helperText={helperText}
       autoComplete={autoComplete}
       onChange={(event) => onChange(event.target.value)}
       slotProps={{
@@ -159,7 +128,7 @@ export function PasswordTextField({
                 onMouseDown={(event) => event.preventDefault()}
                 aria-label={visible ? "Hide password" : "Show password"}
               >
-                {visible ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                {visible ? <EyeOff size={16} /> : <Eye size={16} />}
               </IconButton>
             </InputAdornment>
           ),

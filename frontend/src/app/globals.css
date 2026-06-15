@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f7f8f5;
+  color: #17211d;
+  font-family: Inter, Arial, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input[list] {
+  appearance: none;
+}
+
+input[list]::-webkit-calendar-picker-indicator {
+  display: none !important;
+  opacity: 0;
+}

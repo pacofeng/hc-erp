@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  AppBar,
-  Box,
-  Button,
-  Chip,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  Toolbar,
-  Tooltip,
-} from "@mui/material";
-import LogoutIcon from "@mui/icons-material/Logout";
+import { Button, IconButton } from "@/components/ui/button";
+import { FormControl } from "@/components/ui/form";
+import { AppBar, Box, Chip, Paper, Stack, Toolbar } from "@/components/ui/layout";
+import { MenuItem, Select } from "@/components/ui/select";
+import { Tooltip } from "@/components/ui/tooltip";
+import { LogOut } from "lucide-react";
 import { LOGO_SRC, RESOURCE_STORAGE_KEY } from "../../app/constants";
 import type { Translation } from "../../app/i18n";
 import {
@@ -94,32 +84,20 @@ export function Shell({
   }, [session]);
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <AppBar
-        position="sticky"
-        color="inherit"
-        elevation={0}
-        sx={{ borderBottom: "1px solid #dde3dc" }}
-      >
+    <Box className="min-h-screen bg-background">
+      <AppBar position="sticky" color="inherit" elevation={0}>
         <Toolbar>
-          <Box sx={{ flex: 1 }}>
+          <Box className="flex-1">
             <Box
               component="img"
               src={LOGO_SRC}
               alt="Hengchang Machinery"
-              sx={{
-                display: "block",
-                width: { xs: 190, sm: 260 },
-                maxWidth: "100%",
-                height: "auto",
-              }}
+              className="block h-auto w-[190px] max-w-full sm:w-[260px]"
             />
           </Box>
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>{t.language}</InputLabel>
+          <Stack direction="row" spacing={1} className="items-center">
+            <FormControl size="small" className="min-w-[150px]">
               <Select
-                label={t.language}
                 value={language}
                 onChange={(event) =>
                   void onLanguageChange(event.target.value as Language)
@@ -132,22 +110,16 @@ export function Shell({
             <Chip label={session.username} size="small" />
             <Tooltip title={t.signOut}>
               <IconButton onClick={onLogout}>
-                <LogoutIcon />
+                <LogOut size={16} />
               </IconButton>
             </Tooltip>
           </Stack>
         </Toolbar>
       </AppBar>
       <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "220px 1fr" },
-          gap: 2,
-          p: 2,
-          flex: 1,
-        }}
+        className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]"
       >
-        <Paper sx={{ p: 1, alignSelf: "start" }}>
+        <Paper className="self-start p-2">
           {visibleResources.map((item) => (
             <Button
               key={item.key}
@@ -155,7 +127,7 @@ export function Shell({
               startIcon={item.icon}
               variant={activeResource === item.key ? "contained" : "text"}
               onClick={() => selectResource(item.key)}
-              sx={{ justifyContent: "flex-start", mb: 0.5 }}
+              className="mb-1 justify-start"
             >
               {t.resources[item.key]}
             </Button>

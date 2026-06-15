@@ -1,5 +1,17 @@
 import type { Field } from "./types";
 
+const emergencyContactRelationOptions = [
+  "SPOUSE",
+  "PARENT",
+  "CHILD",
+  "SIBLING",
+  "GRANDPARENT",
+  "AUNT_UNCLE",
+  "COUSIN",
+  "NIECE_NEPHEW",
+  "OTHER",
+];
+
 export const employeeTableColumns = [
   "employeeNo",
   "fullName",
@@ -128,7 +140,11 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
       { name: "status", options: ["ACTIVE", "TERMINATED"] },
       { name: "emergencyContact.fullName", required: true },
       { name: "emergencyContact.phone", required: true },
-      { name: "emergencyContact.relation", required: true },
+      {
+        name: "emergencyContact.relation",
+        required: true,
+        options: emergencyContactRelationOptions,
+      },
     ],
   },
   departments: {
@@ -204,7 +220,11 @@ export const settingsFields: Field[] = [
   { name: "address" },
   { name: "emergencyContact.fullName", required: true },
   { name: "emergencyContact.phone", required: true },
-  { name: "emergencyContact.relation", required: true },
+  {
+    name: "emergencyContact.relation",
+    required: true,
+    options: emergencyContactRelationOptions,
+  },
   { name: "employeeNo", readOnly: true },
   { name: "departmentName", readOnly: true },
   { name: "managerName", readOnly: true },

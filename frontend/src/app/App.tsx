@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
-  Button,
-  CssBaseline,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Typography,
-  createTheme,
-  ThemeProvider,
-} from "@mui/material";
+} from "@/components/ui/dialog";
+import { Typography } from "@/components/ui/typography";
 import {
   AUTH_EXPIRED_EVENT,
   INACTIVITY_TIMEOUT_MS,
@@ -33,15 +32,27 @@ import {
 } from "./resources";
 import type { Language, Session } from "./types";
 
+function isBrowser() {
+  return typeof window !== "undefined";
+}
+
+function readStoredSession(): Session | null {
+  if (!isBrowser()) return null;
+  const raw = window.localStorage.getItem("hcerp-session");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Session;
+  } catch {
+    window.localStorage.removeItem("hcerp-session");
+    return null;
+  }
+}
+
 export function App() {
-  const [session, setSession] = useState<Session | null>(() => {
-    const raw = localStorage.getItem("hcerp-session");
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [storageLoaded, setStorageLoaded] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const [routeVersion, setRouteVersion] = useState(0);
-  const [language, setLanguage] = useState<Language>(() =>
-    getPreferredLanguage(session),
-  );
+  const [language, setLanguage] = useState<Language>("zh-CN");
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(
     INACTIVITY_WARNING_SECONDS,
@@ -49,57 +60,24 @@ export function App() {
   const inactivityWarningVisibleRef = useRef(false);
   const t = messages[language];
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: "light",
-          primary: { main: "#285c52" },
-          secondary: { main: "#7c3f58" },
-          background: { default: "#f7f8f5" },
-        },
-        shape: { borderRadius: 6 },
-        typography: { fontFamily: "Inter, Arial, sans-serif" },
-        components: {
-          MuiButton: {
-            styleOverrides: {
-              root: { textTransform: "none", fontWeight: 600 },
-            },
-          },
-          MuiTableCell: {
-            styleOverrides: {
-              head: { fontWeight: 700, backgroundColor: "#eef2ed" },
-            },
-          },
-          MuiTextField: {
-            defaultProps: {
-              size: "small",
-            },
-          },
-          MuiFormControl: {
-            defaultProps: {
-              size: "small",
-            },
-          },
-          MuiSelect: {
-            defaultProps: {
-              size: "small",
-            },
-          },
-        },
-      }),
-    [],
-  );
+  useEffect(() => {
+    if (!isBrowser()) return;
+    const storedSession = readStoredSession();
+    setSession(storedSession);
+    setLanguage(getPreferredLanguage(storedSession));
+    setStorageLoaded(true);
+  }, []);
 
   function saveSession(next: Session | null) {
     setSession(next);
     const nextLanguage = getPreferredLanguage(next);
     setLanguage(nextLanguage);
-    localStorage.setItem("hcerp-language", nextLanguage);
+    if (!isBrowser()) return;
+    window.localStorage.setItem("hcerp-language", nextLanguage);
     if (next) {
-      localStorage.setItem("hcerp-session", JSON.stringify(next));
-      sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
-      localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
+      window.localStorage.setItem("hcerp-session", JSON.stringify(next));
+      window.sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
+      window.localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
       navigate(
         next.securityQuestionsConfigured
           ? resourcePath("dashboard")
@@ -107,14 +85,15 @@ export function App() {
         true,
       );
     } else {
-      localStorage.removeItem("hcerp-session");
+      window.localStorage.removeItem("hcerp-session");
       navigate(LOGIN_PATH, true);
     }
   }
 
   function updateSession(next: Session) {
     setSession(next);
-    localStorage.setItem("hcerp-session", JSON.stringify(next));
+    if (!isBrowser()) return;
+    window.localStorage.setItem("hcerp-session", JSON.stringify(next));
     if (next.securityQuestionsConfigured) {
       navigate(resourcePath("dashboard"), true);
     }
@@ -122,11 +101,18 @@ export function App() {
 
   async function saveLanguage(nextLanguage: Language) {
     setLanguage(nextLanguage);
-    localStorage.setItem("hcerp-language", nextLanguage);
+    if (isBrowser()) {
+      window.localStorage.setItem("hcerp-language", nextLanguage);
+    }
     if (!session) return;
     const updatedSession = { ...session, language: nextLanguage };
     setSession(updatedSession);
-    localStorage.setItem("hcerp-session", JSON.stringify(updatedSession));
+    if (isBrowser()) {
+      window.localStorage.setItem(
+        "hcerp-session",
+        JSON.stringify(updatedSession),
+      );
+    }
     await api("/auth/language", updatedSession, {
       method: "PUT",
       body: JSON.stringify({ language: nextLanguage }),
@@ -134,6 +120,8 @@ export function App() {
   }
 
   useEffect(() => {
+    if (!isBrowser()) return;
+
     function handlePopState() {
       setRouteVersion((version) => version + 1);
     }
@@ -147,6 +135,8 @@ export function App() {
   }, [showInactivityWarning]);
 
   useEffect(() => {
+    if (!isBrowser()) return;
+
     function handleAuthExpired() {
       setShowInactivityWarning(false);
       setInactivityCountdown(INACTIVITY_WARNING_SECONDS);
@@ -160,7 +150,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!session) {
+    if (!isBrowser()) return;
+
+    if (!storageLoaded || !session) {
       setShowInactivityWarning(false);
       setInactivityCountdown(INACTIVITY_WARNING_SECONDS);
       return;
@@ -236,13 +228,15 @@ export function App() {
         window.removeEventListener(eventName, resetInactivityTimers);
       });
     };
-  }, [session]);
+  }, [session, storageLoaded]);
 
   useEffect(() => {
+    if (!isBrowser() || !storageLoaded) return;
+
     if (!session) {
       const requestedResource = getResourceFromPath();
       if (requestedResource)
-        sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
+        window.sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
       if (window.location.pathname !== LOGIN_PATH) navigate(LOGIN_PATH, true);
       return;
     }
@@ -262,11 +256,12 @@ export function App() {
     if (window.location.pathname === LOGIN_PATH || !getResourceFromPath()) {
       navigate(resourcePath(getStoredResource()), true);
     }
-  }, [session, routeVersion]);
+  }, [session, routeVersion, storageLoaded]);
+
+  if (!storageLoaded) return null;
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <>
       {session ? (
         !session.securityQuestionsConfigured ? (
           <SecurityQuestionSetup
@@ -294,7 +289,7 @@ export function App() {
                 <Typography variant="body2">
                   {t.inactivityWarningMessage}
                 </Typography>
-                <Typography variant="h4" sx={{ mt: 2, fontWeight: 700 }}>
+                <Typography variant="h4" className="mt-4">
                   {inactivityCountdown}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -323,6 +318,6 @@ export function App() {
           onLogin={saveSession}
         />
       )}
-    </ThemeProvider>
+    </>
   );
 }

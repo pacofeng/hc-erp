@@ -5,6 +5,8 @@ node_modules/
 **/.pnpm-store/
 
 # Frontend build output
+.next/
+**/.next/
 dist/
 build/
 .vite/

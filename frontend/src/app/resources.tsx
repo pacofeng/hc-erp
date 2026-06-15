@@ -1,21 +1,23 @@
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import BadgeIcon from "@mui/icons-material/Badge";
-import BusinessIcon from "@mui/icons-material/Business";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import SettingsIcon from "@mui/icons-material/Settings";
-import VpnKeyIcon from "@mui/icons-material/VpnKey";
+import {
+  Badge,
+  Building2,
+  CircleUserRound,
+  KeyRound,
+  LayoutDashboard,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 import { RESOURCE_STORAGE_KEY } from "./constants";
 import type { Session } from "./types";
 
 export const resources = [
-  { key: "dashboard", icon: <DashboardIcon fontSize="small" /> },
-  { key: "employees", icon: <BadgeIcon fontSize="small" /> },
-  { key: "departments", icon: <BusinessIcon fontSize="small" /> },
-  { key: "accounts", icon: <AccountCircleIcon fontSize="small" /> },
-  { key: "roles", icon: <AdminPanelSettingsIcon fontSize="small" /> },
-  { key: "permissions", icon: <VpnKeyIcon fontSize="small" /> },
-  { key: "settings", icon: <SettingsIcon fontSize="small" /> },
+  { key: "dashboard", icon: <LayoutDashboard size={16} /> },
+  { key: "employees", icon: <Badge size={16} /> },
+  { key: "departments", icon: <Building2 size={16} /> },
+  { key: "accounts", icon: <CircleUserRound size={16} /> },
+  { key: "roles", icon: <ShieldCheck size={16} /> },
+  { key: "permissions", icon: <KeyRound size={16} /> },
+  { key: "settings", icon: <Settings size={16} /> },
 ] as const;
 
 export type ResourceKey = (typeof resources)[number]["key"];
@@ -62,14 +64,21 @@ export const resourceActionAuthorities: Partial<
   },
 };
 
+function isBrowser() {
+  return typeof window !== "undefined";
+}
+
 export function getStoredResource() {
-  const stored = localStorage.getItem(RESOURCE_STORAGE_KEY);
+  const stored = isBrowser()
+    ? window.localStorage.getItem(RESOURCE_STORAGE_KEY)
+    : null;
   return resourceKeys.includes(stored as (typeof resourceKeys)[number])
     ? stored!
     : "dashboard";
 }
 
 export function getResourceFromPath() {
+  if (!isBrowser()) return undefined;
   const pathResource = window.location.pathname.split("/").filter(Boolean)[0];
   return resourceKeys.includes(pathResource as (typeof resourceKeys)[number])
     ? pathResource!
@@ -125,6 +134,7 @@ export function allowedResource(candidate: string | undefined, session: Session)
 }
 
 export function navigate(path: string, replace = false) {
+  if (!isBrowser()) return;
   if (window.location.pathname === path) return;
   if (replace) window.history.replaceState(null, "", path);
   else window.history.pushState(null, "", path);

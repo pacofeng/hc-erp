@@ -1,26 +1,49 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
 import {
-  Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import SaveIcon from "@mui/icons-material/Save";
-import SecurityIcon from "@mui/icons-material/Security";
+} from "@/components/ui/dialog";
+import { FormControl, FormHelperText, InputLabel } from "@/components/ui/form";
+import { TextField } from "@/components/ui/input";
+import { Box, Paper, Stack } from "@/components/ui/layout";
+import { MenuItem, Select } from "@/components/ui/select";
+import { Typography } from "@/components/ui/typography";
+import { Save, Shield } from "lucide-react";
 import { api } from "../../app/apiClient";
-import type { Translation } from "../../app/i18n";
+import {
+  apiError,
+  messageError,
+  renderLocalizedError,
+  type LocalizedErrorState,
+  type Translation,
+} from "../../app/i18n";
 import type { Language, Session } from "../../app/types";
 import { PasswordTextField, PublicPageShell } from "../../components/AppChrome";
+
+type FieldErrorMap = Partial<Record<string, LocalizedErrorState>>;
+
+function requiredError() {
+  return messageError("fieldRequired");
+}
+
+function fieldErrorText(
+  fieldErrors: FieldErrorMap,
+  fieldName: string,
+  t: Translation,
+  language: Language,
+) {
+  const error = fieldErrors[fieldName];
+  return error ? renderLocalizedError(error, t, language) : undefined;
+}
+
+function clearFieldError(fieldErrors: FieldErrorMap, fieldName: string) {
+  const nextFieldErrors = { ...fieldErrors };
+  delete nextFieldErrors[fieldName];
+  return nextFieldErrors;
+}
 
 export function Login({
   language,
@@ -35,12 +58,18 @@ export function Login({
 }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<LocalizedErrorState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [forgotOpen, setForgotOpen] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setError("");
+    setError(null);
+    const nextFieldErrors: FieldErrorMap = {};
+    if (!username.trim()) nextFieldErrors.username = requiredError();
+    if (!password.trim()) nextFieldErrors.password = requiredError();
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     try {
       const result = await api<Session>("/auth/login", undefined, {
         method: "POST",
@@ -55,7 +84,7 @@ export function Login({
       }
       onLogin(sessionWithSelectedLanguage);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loginFailed);
+      setFieldErrors({ password: apiError(err, "loginFailed") });
     }
   }
 
@@ -65,40 +94,51 @@ export function Login({
       t={t}
       onLanguageChange={onLanguageChange}
     >
-      <Paper component="form" onSubmit={submit} sx={{ width: "100%", p: 3 }}>
+      <Paper component="form" onSubmit={submit} noValidate className="w-full p-6">
         <Stack spacing={2.5}>
           <TextField
             label={t.username}
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(event) => {
+              setUsername(event.target.value);
+              setFieldErrors((current) => clearFieldError(current, "username"));
+            }}
             required
+            error={Boolean(fieldErrors.username)}
+            helperText={fieldErrorText(fieldErrors, "username", t, language)}
           />
           <PasswordTextField
             label={t.password}
             value={password}
-            onChange={setPassword}
+            onChange={(value) => {
+              setPassword(value);
+              setFieldErrors((current) => clearFieldError(current, "password"));
+            }}
             autoComplete="current-password"
             required
+            error={Boolean(fieldErrors.password)}
+            helperText={fieldErrorText(fieldErrors, "password", t, language)}
           />
-          <Box sx={{ mt: -1 }}>
+          <Box className="-mt-2">
             <Button
+              type="button"
               variant="text"
               size="small"
               onClick={() => setForgotOpen(true)}
-              sx={{ px: 0 }}
+              className="px-0"
             >
               {t.forgotPassword}
             </Button>
           </Box>
           {error && (
             <Typography color="error" variant="body2">
-              {error}
+              {renderLocalizedError(error, t, language)}
             </Typography>
           )}
           <Button
             type="submit"
             variant="contained"
-            startIcon={<SecurityIcon />}
+            startIcon={<Shield size={16} />}
           >
             {t.signIn}
           </Button>
@@ -106,6 +146,7 @@ export function Login({
         <ForgotPasswordDialog
           open={forgotOpen}
           initialUsername={username}
+          language={language}
           t={t}
           onClose={() => setForgotOpen(false)}
         />
@@ -135,7 +176,8 @@ export function SecurityQuestionSetup({
     { question: "", answer: "" },
     { question: "", answer: "" },
   ]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<LocalizedErrorState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
 
   useEffect(() => {
     void api<{ questions: string[] }>("/auth/security-questions/options")
@@ -148,19 +190,31 @@ export function SecurityQuestionSetup({
           })),
         );
       })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : t.loadFailed),
-      );
+      .catch((err) => setError(apiError(err, "loadFailed")));
   }, [t.loadFailed]);
 
   async function save() {
-    setError("");
+    setError(null);
+    const nextFieldErrors: FieldErrorMap = {};
+    answers.forEach((answer, index) => {
+      if (!answer.question) nextFieldErrors[`question-${index}`] = requiredError();
+      if (!answer.answer.trim()) nextFieldErrors[`answer-${index}`] = requiredError();
+    });
     const selectedQuestions = answers.map((answer) => answer.question);
     if (
-      answers.some((answer) => !answer.question || !answer.answer.trim()) ||
+      selectedQuestions.filter(Boolean).length >= 3 &&
       new Set(selectedQuestions).size < 3
     ) {
-      setError(t.securityQuestionSetupMessage);
+      answers.forEach((answer, index) => {
+        if (answer.question) {
+          nextFieldErrors[`question-${index}`] = messageError(
+            "securityQuestionSetupMessage",
+          );
+        }
+      });
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) {
       return;
     }
     try {
@@ -170,7 +224,7 @@ export function SecurityQuestionSetup({
       });
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      setError(apiError(err, "saveFailed"));
     }
   }
 
@@ -179,12 +233,12 @@ export function SecurityQuestionSetup({
       language={language}
       t={t}
       onLanguageChange={onLanguageChange}
-      maxWidth={720}
+      maxWidthClassName="max-w-[720px]"
     >
-      <Paper sx={{ width: "100%", p: 3 }}>
+      <Paper className="w-full p-6">
         <Stack spacing={2.5}>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h5">
               {t.securityQuestionSetupTitle}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -196,16 +250,18 @@ export function SecurityQuestionSetup({
               <FormControl fullWidth>
                 <InputLabel>{t.securityQuestion}</InputLabel>
                 <Select
-                  label={t.securityQuestion}
                   value={answer.question}
                   onChange={(event) =>
+                    (setFieldErrors((current) =>
+                      clearFieldError(current, `question-${index}`),
+                    ),
                     setAnswers((current) =>
                       current.map((item, itemIndex) =>
                         itemIndex === index
-                          ? { ...item, question: event.target.value }
+                          ? { ...item, question: String(event.target.value) }
                           : item,
                       ),
-                    )
+                    ))
                   }
                 >
                   {questions.map((question) => (
@@ -221,35 +277,44 @@ export function SecurityQuestionSetup({
                     </MenuItem>
                   ))}
                 </Select>
+                <FormHelperText error>
+                  {fieldErrorText(fieldErrors, `question-${index}`, t, language)}
+                </FormHelperText>
               </FormControl>
               <TextField
                 fullWidth
                 label={t.securityAnswer}
                 value={answer.answer}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setFieldErrors((current) =>
+                    clearFieldError(current, `answer-${index}`),
+                  );
                   setAnswers((current) =>
                     current.map((item, itemIndex) =>
                       itemIndex === index
                         ? { ...item, answer: event.target.value }
                         : item,
                     ),
-                  )
-                }
+                  );
+                }}
+                error={Boolean(fieldErrors[`answer-${index}`])}
+                helperText={fieldErrorText(
+                  fieldErrors,
+                  `answer-${index}`,
+                  t,
+                  language,
+                )}
               />
             </Stack>
           ))}
           {error && (
             <Typography color="error" variant="body2">
-              {error}
+              {renderLocalizedError(error, t, language)}
             </Typography>
           )}
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ justifyContent: "flex-end" }}
-          >
+          <Stack direction="row" spacing={1} className="justify-end">
             <Button onClick={onLogout}>{t.signOut}</Button>
-            <Button variant="contained" onClick={save} startIcon={<SaveIcon />}>
+            <Button variant="contained" onClick={save} startIcon={<Save size={16} />}>
               {t.save}
             </Button>
           </Stack>
@@ -262,11 +327,13 @@ export function SecurityQuestionSetup({
 function ForgotPasswordDialog({
   open,
   initialUsername,
+  language,
   t,
   onClose,
 }: {
   open: boolean;
   initialUsername: string;
+  language: Language;
   t: Translation;
   onClose: () => void;
 }) {
@@ -278,7 +345,8 @@ function ForgotPasswordDialog({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<LocalizedErrorState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
 
   useEffect(() => {
     if (!open) return;
@@ -290,11 +358,16 @@ function ForgotPasswordDialog({
     setNewPassword("");
     setConfirmPassword("");
     setSuccess("");
-    setError("");
+    setError(null);
+    setFieldErrors({});
   }, [open, initialUsername]);
 
   async function loadQuestions() {
-    setError("");
+    setError(null);
+    const nextFieldErrors: FieldErrorMap = {};
+    if (!username.trim()) nextFieldErrors.username = requiredError();
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     setSuccess("");
     try {
       const result = await api<{ questionIndex: number; question: string }>(
@@ -309,13 +382,17 @@ function ForgotPasswordDialog({
       setQuestionIndex(result.questionIndex);
       setAnswer("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadFailed);
+      setFieldErrors({ username: apiError(err, "loadFailed") });
     }
   }
 
   async function verifyAnswers() {
-    setError("");
+    setError(null);
     if (questionIndex === null) return;
+    const nextFieldErrors: FieldErrorMap = {};
+    if (!answer.trim()) nextFieldErrors.answer = requiredError();
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     try {
       const result = await api<{ resetToken: string }>(
         "/auth/forgot-password/verify",
@@ -327,20 +404,23 @@ function ForgotPasswordDialog({
       );
       setResetToken(result.resetToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      setFieldErrors({ answer: apiError(err, "saveFailed") });
     }
   }
 
   async function resetPassword() {
-    setError("");
+    setError(null);
+    const nextFieldErrors: FieldErrorMap = {};
+    if (!newPassword.trim()) nextFieldErrors.newPassword = requiredError();
+    if (!confirmPassword.trim()) nextFieldErrors.confirmPassword = requiredError();
     if (!isStrongPassword(newPassword)) {
-      setError(t.passwordStrengthHint);
-      return;
+      nextFieldErrors.newPassword = messageError("passwordStrengthHint");
     }
     if (newPassword !== confirmPassword) {
-      setError(t.passwordsDoNotMatch);
-      return;
+      nextFieldErrors.confirmPassword = messageError("passwordsDoNotMatch");
     }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     try {
       await api("/auth/forgot-password/reset", undefined, {
         method: "POST",
@@ -359,7 +439,7 @@ function ForgotPasswordDialog({
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      setFieldErrors({ confirmPassword: apiError(err, "saveFailed") });
     }
   }
 
@@ -367,19 +447,30 @@ function ForgotPasswordDialog({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{t.forgotPasswordTitle}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
+        <Stack spacing={2} className="pt-2">
           <TextField
             label={t.username}
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(event) => {
+              setUsername(event.target.value);
+              setFieldErrors((current) => clearFieldError(current, "username"));
+            }}
             disabled={Boolean(resetToken)}
             required
+            error={Boolean(fieldErrors.username)}
+            helperText={fieldErrorText(fieldErrors, "username", t, language)}
           />
           {question && !resetToken && (
             <TextField
               label={securityQuestionLabel(t, question)}
               value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
+              onChange={(event) => {
+                setAnswer(event.target.value);
+                setFieldErrors((current) => clearFieldError(current, "answer"));
+              }}
+              required
+              error={Boolean(fieldErrors.answer)}
+              helperText={fieldErrorText(fieldErrors, "answer", t, language)}
             />
           )}
           {resetToken && (
@@ -387,14 +478,40 @@ function ForgotPasswordDialog({
               <PasswordTextField
                 label={t.newPassword}
                 value={newPassword}
-                onChange={setNewPassword}
+                onChange={(value) => {
+                  setNewPassword(value);
+                  setFieldErrors((current) =>
+                    clearFieldError(current, "newPassword"),
+                  );
+                }}
                 autoComplete="new-password"
+                required
+                error={Boolean(fieldErrors.newPassword)}
+                helperText={fieldErrorText(
+                  fieldErrors,
+                  "newPassword",
+                  t,
+                  language,
+                )}
               />
               <PasswordTextField
                 label={t.confirmPassword}
                 value={confirmPassword}
-                onChange={setConfirmPassword}
+                onChange={(value) => {
+                  setConfirmPassword(value);
+                  setFieldErrors((current) =>
+                    clearFieldError(current, "confirmPassword"),
+                  );
+                }}
                 autoComplete="new-password"
+                required
+                error={Boolean(fieldErrors.confirmPassword)}
+                helperText={fieldErrorText(
+                  fieldErrors,
+                  "confirmPassword",
+                  t,
+                  language,
+                )}
               />
               <Typography variant="caption" color="text.secondary">
                 {t.passwordStrengthHint}
@@ -403,7 +520,7 @@ function ForgotPasswordDialog({
           )}
           {error && (
             <Typography color="error" variant="body2">
-              {error}
+              {renderLocalizedError(error, t, language)}
             </Typography>
           )}
           {success && (

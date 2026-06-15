@@ -48,10 +48,12 @@ function tryParseJson(text: string): Record<string, string> {
 
 export function expireSession() {
   const requestedResource = getResourceFromPath();
-  if (requestedResource && requestedResource !== "dashboard") {
-    sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
+  if (typeof window !== "undefined") {
+    if (requestedResource && requestedResource !== "dashboard") {
+      window.sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
+    }
+    window.localStorage.removeItem("hcerp-session");
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
-  localStorage.removeItem("hcerp-session");
-  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   navigate(LOGIN_PATH, true);
 }

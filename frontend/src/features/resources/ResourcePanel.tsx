@@ -1,39 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Autocomplete } from "@/components/ui/autocomplete";
+import { Button, IconButton } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Autocomplete,
-  Box,
-  Button,
-  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
-  FormControl,
-  IconButton,
-  InputLabel,
-  ListItemText,
-  MenuItem,
-  Paper,
-  Select,
-  Skeleton,
-  Stack,
-  TableSortLabel,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+} from "@/components/ui/dialog";
+import { FormControl, FormHelperText, InputLabel } from "@/components/ui/form";
+import { TextField } from "@/components/ui/input";
+import { Box, Divider, Paper, Stack } from "@/components/ui/layout";
+import { ListItemText } from "@/components/ui/list-item-text";
+import { MenuItem, Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TableSortLabel } from "@/components/ui/table-sort-label";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Typography } from "@/components/ui/typography";
 import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
-} from "@mui/x-data-grid";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import SaveIcon from "@mui/icons-material/Save";
+} from "@/components/ui/data-grid";
+import { Camera, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import {
   IMAGE_UPLOAD_ACCEPT,
   IMAGE_UPLOAD_TYPES,
@@ -50,7 +39,13 @@ import {
   schemas,
   settingsFields,
 } from "../../app/schemaConfig";
-import type { Translation } from "../../app/i18n";
+import {
+  apiError,
+  renderLocalizedError,
+  type LocalizedErrorState,
+  type MessageKey,
+  type Translation,
+} from "../../app/i18n";
 import type {
   AnyRow,
   AssignmentState,
@@ -63,6 +58,89 @@ import type {
 } from "../../app/types";
 import { PasswordTextField } from "../../components/AppChrome";
 import { chinaAddressDivisions } from "../../chinaAddressData";
+
+export type FieldErrorState = {
+  kind: "field";
+  fieldName: string;
+  messageKey: "phoneInvalid" | "imageInvalid";
+  resource: string;
+};
+
+export type PanelErrorState = LocalizedErrorState | FieldErrorState;
+export type FieldErrorMap = Partial<Record<string, MessageKey>>;
+
+function fieldError(
+  fieldName: string,
+  messageKey: FieldErrorState["messageKey"],
+  resource: string,
+): FieldErrorState {
+  return { kind: "field", fieldName, messageKey, resource };
+}
+
+export function renderPanelError(
+  error: PanelErrorState,
+  t: Translation,
+  language: Language,
+) {
+  if (error.kind === "field") {
+    return `${formFieldLabel(error.resource, t, error.fieldName)}: ${
+      t[error.messageKey]
+    }`;
+  }
+  return renderLocalizedError(error, t, language);
+}
+
+function fieldErrorText(
+  fieldErrors: FieldErrorMap,
+  fieldName: string,
+  t: Translation,
+) {
+  const messageKey = fieldErrors[fieldName];
+  return messageKey ? String(t[messageKey]) : undefined;
+}
+
+function clearFieldError(fieldErrors: FieldErrorMap, fieldName: string) {
+  const nextFieldErrors = { ...fieldErrors };
+  delete nextFieldErrors[fieldName];
+  return nextFieldErrors;
+}
+
+export function validateFormFields(
+  fields: Field[],
+  form: AnyRow,
+  resource: string,
+  currentRowId?: string,
+) {
+  const errors: FieldErrorMap = {};
+  fields.forEach((field) => {
+    const value = getFieldValue(form, field.name);
+    const isBlank =
+      value === null || value === undefined || String(value).trim() === "";
+    const isPasswordOptionalOnUpdate =
+      resource === "accounts" && field.name === "password" && currentRowId;
+    if (field.required && !isPasswordOptionalOnUpdate && isBlank) {
+      errors[field.name] = "fieldRequired";
+      return;
+    }
+    if (isPhoneField(field.name) && !isBlank && !isValidPhoneValue(value)) {
+      errors[field.name] = "phoneInvalid";
+    }
+    if (field.name === "idCardNumber" && !isBlank && !isValidIdCardNumber(value)) {
+      errors[field.name] = "idCardInvalid";
+    }
+    if (field.name === "dateOfBirth" && !isBlank && isFutureDateValue(value)) {
+      errors[field.name] = "dateOfBirthFuture";
+    }
+    if (
+      isImageUploadField(field.name) &&
+      !isBlank &&
+      !isValidImageDataUrl(value)
+    ) {
+      errors[field.name] = "imageInvalid";
+    }
+  });
+  return errors;
+}
 
 export function ResourcePanel({
   resource,
@@ -90,7 +168,7 @@ export function ResourcePanel({
     pageSize: 20,
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PanelErrorState | null>(null);
   const actions = useMemo(
     () => ({
       create: canUseResourceAction(resource, "create", session),
@@ -101,7 +179,7 @@ export function ResourcePanel({
   );
 
   async function load() {
-    setError("");
+    setError(null);
     setLoading(true);
     try {
       const nextRows = await api<AnyRow[]>(`/${resource}`, session);
@@ -123,7 +201,7 @@ export function ResourcePanel({
         setReferences({ departments: nextRows, employees, accounts: [] });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadFailed);
+      setError(apiError(err, "loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -135,13 +213,13 @@ export function ResourcePanel({
 
   async function remove(row: AnyRow) {
     if (!row.id) return;
-    setError("");
+    setError(null);
     try {
       await api<void>(`/${resource}/${row.id}`, session, { method: "DELETE" });
       setPendingDelete(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.deleteFailed);
+      setError(apiError(err, "deleteFailed"));
     }
   }
 
@@ -193,14 +271,14 @@ export function ResourcePanel({
   }
 
   return (
-    <Paper sx={{ overflow: "hidden" }}>
+    <Paper className="overflow-hidden">
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1}
-        sx={{ p: 2, alignItems: { sm: "center" } }}
+        className="p-4 sm:items-center"
       >
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        <Box className="flex-1">
+          <Typography variant="h6">
             {t.resources[resource as keyof typeof t.resources]}
           </Typography>
           {loading ? (
@@ -214,14 +292,14 @@ export function ResourcePanel({
         <Tooltip title={t.refresh}>
           <span>
             <IconButton onClick={load} disabled={loading}>
-              <RefreshIcon />
+              <RefreshCw size={16} />
             </IconButton>
           </span>
         </Tooltip>
         {actions.create && (
           <Button
             variant="contained"
-            startIcon={<AddIcon />}
+            startIcon={<Plus size={16} />}
             onClick={() => setEditing(defaultRow(schema.fields, resource))}
           >
             {t.new}
@@ -230,11 +308,11 @@ export function ResourcePanel({
       </Stack>
       <Divider />
       {error && (
-        <Typography color="error" sx={{ px: 2, py: 1 }}>
-          {error}
+        <Typography color="error" className="px-4 py-2">
+          {renderPanelError(error, t, language)}
         </Typography>
       )}
-      <Box sx={{ height: "calc(100vh - 238px)", minHeight: 420 }}>
+      <Box className="h-[calc(100vh-238px)] min-h-[420px]">
         <DataGrid
           rows={sortedRows}
           columns={dataGridColumns}
@@ -244,13 +322,6 @@ export function ResourcePanel({
           onPaginationModelChange={updatePaginationModel}
           pageSizeOptions={pageSizeOptions}
           getRowId={(row: AnyRow) => String(row.id)}
-          sx={{
-            border: 0,
-            "& .MuiDataGrid-columnHeaderTitle": { fontWeight: 700 },
-            "& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus": {
-              outline: "none",
-            },
-          }}
         />
       </Box>
       {editing && (
@@ -259,6 +330,7 @@ export function ResourcePanel({
           schema={schema}
           row={editing}
           session={session}
+          language={language}
           t={t}
           references={references}
           onClose={() => setEditing(null)}
@@ -279,8 +351,8 @@ export function ResourcePanel({
           <DialogContent>
             <Typography variant="body2">{t.confirmDeleteMessage}</Typography>
             {employeeAccountForDelete(resource, pendingDelete, references) && (
-              <Box sx={{ mt: 2, p: 1.5, bgcolor: "#fdecee", borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              <Box className="mt-4 rounded-md bg-[#fdecee] p-3">
+                <Typography variant="body2" className="font-bold">
                   {t.employeeAccountDeleteWarning}
                 </Typography>
                 <Typography variant="body2">
@@ -301,7 +373,7 @@ export function ResourcePanel({
             <Button
               color="error"
               variant="contained"
-              startIcon={<DeleteIcon />}
+              startIcon={<Trash2 size={16} />}
               onClick={() => remove(pendingDelete)}
             >
               {t.delete}
@@ -318,6 +390,7 @@ function EditDialog({
   schema,
   row,
   session,
+  language,
   t,
   references,
   onClose,
@@ -327,13 +400,15 @@ function EditDialog({
   schema: { label: string; fields: Field[] };
   row: AnyRow;
   session: Session;
+  language: Language;
   t: Translation;
   references: ReferenceData;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState<AnyRow>(row);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PanelErrorState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [assignmentState, setAssignmentState] =
     useState<AssignmentState | null>(null);
   const assignmentType =
@@ -344,31 +419,23 @@ function EditDialog({
         : undefined;
 
   async function save() {
-    setError("");
-    const validationError = validatePhoneFields(
+    setError(null);
+    const nextFieldErrors = validateFormFields(
       schema.fields,
       form,
-      t,
       resource,
+      row.id,
     );
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    const imageValidationError = validateImageFields(schema.fields, form, t);
-    if (imageValidationError) {
-      setError(imageValidationError);
-      return;
-    }
     const body = requestBodyFromFields(schema.fields, form);
     if (
       resource === "accounts" &&
       !row.id &&
       !String(body.password ?? "").trim()
     ) {
-      setError(t.passwordRequired);
-      return;
+      nextFieldErrors.password = "passwordRequired";
     }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     try {
       await api(`/${resource}${row.id ? `/${row.id}` : ""}`, session, {
         method: row.id ? "PUT" : "POST",
@@ -379,7 +446,7 @@ function EditDialog({
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      setError(apiError(err, "saveFailed"));
     }
   }
 
@@ -392,7 +459,7 @@ function EditDialog({
     >
       <DialogTitle>{dialogTitle(resource, row.id, t)}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
+        <Stack spacing={2} className="pt-2">
           {resource === "employees" ? (
             <FormSections
               sections={row.id ? employeeFormSections : newEmployeeFormSections}
@@ -402,6 +469,11 @@ function EditDialog({
               t={t}
               references={references}
               currentRowId={row.id}
+              language={language}
+              fieldErrors={fieldErrors}
+              onFieldChange={(fieldName) =>
+                setFieldErrors((current) => clearFieldError(current, fieldName))
+              }
               columns={3}
             />
           ) : (
@@ -414,12 +486,18 @@ function EditDialog({
                 t,
                 references,
                 row.id,
+                language,
+                fieldErrors,
+                (fieldName) =>
+                  setFieldErrors((current) =>
+                    clearFieldError(current, fieldName),
+                  ),
               ),
             )
           )}
           {error && (
             <Typography color="error" variant="body2">
-              {error}
+              {renderPanelError(error, t, language)}
             </Typography>
           )}
           {assignmentType && (
@@ -427,6 +505,7 @@ function EditDialog({
               type={assignmentType}
               row={row}
               session={session}
+              language={language}
               t={t}
               onChange={setAssignmentState}
             />
@@ -435,7 +514,7 @@ function EditDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t.cancel}</Button>
-        <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
+        <Button onClick={save} variant="contained" startIcon={<Save size={16} />}>
           {t.save}
         </Button>
       </DialogActions>
@@ -462,6 +541,8 @@ export function FormSections({
   references = { departments: [], employees: [], accounts: [] },
   currentRowId,
   language = "en",
+  fieldErrors = {},
+  onFieldChange,
   columns = 2,
 }: {
   sections: readonly FormSection[];
@@ -472,6 +553,8 @@ export function FormSections({
   references?: ReferenceData;
   currentRowId?: string;
   language?: Language;
+  fieldErrors?: FieldErrorMap;
+  onFieldChange?: (fieldName: string) => void;
   columns?: 2 | 3;
 }) {
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
@@ -480,20 +563,15 @@ export function FormSections({
     <Stack spacing={2.5}>
       {sections.map((section) => (
         <Box key={section.titleKey}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          <Typography variant="subtitle1">
             {t[section.titleKey]}
           </Typography>
           <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, minmax(0, 1fr))",
-                lg: `repeat(${columns}, minmax(0, 1fr))`,
-              },
-              gap: 2,
-              mt: 1,
-            }}
+            className={
+              columns === 3
+                ? "mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                : "mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2"
+            }
           >
             {section.fields.map((fieldName) => {
               const field = fieldByName.get(fieldName);
@@ -504,12 +582,7 @@ export function FormSections({
               return (
                 <Box
                   key={fieldName}
-                  sx={{
-                    gridColumn: shouldSpan
-                      ? { xs: "1", sm: "1 / -1" }
-                      : undefined,
-                    width: "100%",
-                  }}
+                  className={shouldSpan ? "w-full sm:col-span-full" : "w-full"}
                 >
                   {renderField(
                     "employees",
@@ -520,6 +593,8 @@ export function FormSections({
                     references,
                     currentRowId,
                     language,
+                    fieldErrors,
+                    onFieldChange,
                   )}
                 </Box>
               );
@@ -576,12 +651,14 @@ function AssignmentSection({
   type,
   row,
   session,
+  language,
   t,
   onChange,
 }: {
   type: AssignmentType;
   row: AnyRow;
   session: Session;
+  language: Language;
   t: Translation;
   onChange: (state: AssignmentState) => void;
 }) {
@@ -590,12 +667,12 @@ function AssignmentSection({
   const [originalIds, setOriginalIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PanelErrorState | null>(null);
   const targetIdKey = type === "account" ? "roleId" : "permissionId";
   const selectLabel = type === "account" ? t.accountRoles : t.rolePermissions;
 
   async function load() {
-    setError("");
+    setError(null);
     setLoading(true);
     try {
       const [all, assigned] = await Promise.all([
@@ -615,7 +692,7 @@ function AssignmentSection({
       setSelectedIds(loadedIds);
       onChange({ type, originalIds: loadedIds, selectedIds: loadedIds });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadFailed);
+      setError(apiError(err, "loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -645,22 +722,21 @@ function AssignmentSection({
     <>
       <Divider />
       <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        <Typography variant="subtitle1">
           {selectLabel}
         </Typography>
         {error && (
-          <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-            {error}
+          <Typography color="error" variant="body2" className="mt-2">
+            {renderPanelError(error, t, language)}
           </Typography>
         )}
         {loading ? (
-          <Skeleton variant="rounded" height={40} sx={{ mt: 1 }} />
+          <Skeleton variant="rounded" height={40} className="mt-2" />
         ) : (
-          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+          <FormControl fullWidth size="small" className="mt-2">
             <InputLabel>{selectLabel}</InputLabel>
             <Select
               multiple
-              label={selectLabel}
               value={selectedIds}
               onChange={(event) => handleSelectionChange(event.target.value)}
               renderValue={(selected) =>
@@ -729,7 +805,6 @@ export function requestBodyFromFields(fields: Field[], form: AnyRow) {
 export function validatePhoneFields(
   fields: Field[],
   form: AnyRow,
-  t: Translation,
   resource: string,
 ) {
   const invalidField = fields.find(
@@ -737,15 +812,13 @@ export function validatePhoneFields(
       isPhoneField(field.name) &&
       !isValidPhoneValue(getFieldValue(form, field.name)),
   );
-  return invalidField
-    ? `${formFieldLabel(resource, t, invalidField.name)}: ${t.phoneInvalid}`
-    : "";
+  return invalidField ? fieldError(invalidField.name, "phoneInvalid", resource) : null;
 }
 
 export function validateImageFields(
   fields: Field[],
   form: AnyRow,
-  t: Translation,
+  resource: string,
 ) {
   const invalidField = fields.find((field) => {
     const value = getFieldValue(form, field.name);
@@ -757,9 +830,7 @@ export function validateImageFields(
       !isValidImageDataUrl(value)
     );
   });
-  return invalidField
-    ? `${fieldLabel(t, invalidField.name)}: ${t.imageInvalid}`
-    : "";
+  return invalidField ? fieldError(invalidField.name, "imageInvalid", resource) : null;
 }
 
 function isPhoneField(fieldName: string) {
@@ -768,6 +839,22 @@ function isPhoneField(fieldName: string) {
 
 function isValidPhoneValue(value: unknown) {
   return /^\d{11}$/.test(String(value ?? ""));
+}
+
+function isValidIdCardNumber(value: unknown) {
+  return String(value ?? "").length === 18;
+}
+
+function isFutureDateValue(value: unknown) {
+  const dateValue = String(value ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return false;
+  const today = new Date();
+  const todayValue = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  return dateValue > todayValue;
 }
 
 function isImageUploadField(fieldName: string) {
@@ -844,7 +931,11 @@ function renderField(
   references: ReferenceData,
   currentRowId?: string,
   language: Language = "en",
+  fieldErrors: FieldErrorMap = {},
+  onFieldChange?: (fieldName: string) => void,
 ) {
+  const helperText = fieldErrorText(fieldErrors, field.name, t);
+  const hasFieldError = Boolean(helperText);
   if (field.readOnly) {
     const value = getFieldValue(form, field.name);
     const display = isDateColumn(field.name)
@@ -863,11 +954,25 @@ function renderField(
   }
 
   if (isImageUploadField(field.name)) {
-    return renderImageUploadField(field, form, setForm, t);
+    return renderImageUploadField(
+      field,
+      form,
+      setForm,
+      t,
+      helperText,
+      onFieldChange,
+    );
   }
 
   if (isChinaAddressField(field.name)) {
-    return renderChinaAddressField(field, form, setForm, t);
+    return renderChinaAddressField(
+      field,
+      form,
+      setForm,
+      t,
+      helperText,
+      onFieldChange,
+    );
   }
 
   if (resource === "accounts" && field.name === "employeeId") {
@@ -888,12 +993,19 @@ function renderField(
         getOptionLabel={accountEmployeeName}
         isOptionEqualToValue={(option, value) => option.id === value.id}
         onChange={(_, employee) =>
-          setForm({ ...form, employeeId: employee?.id ?? null })
+          (onFieldChange?.(field.name),
+          setForm({
+            ...form,
+            employeeId:
+              employee && typeof employee === "object" ? employee.id : null,
+          }))
         }
         renderInput={(params) => (
           <TextField
             {...params}
             label={formFieldLabel(resource, t, field.name)}
+            error={hasFieldError}
+            helperText={helperText}
           />
         )}
       />
@@ -907,12 +1019,12 @@ function renderField(
       <FormControl key={field.name} fullWidth>
         <InputLabel>{label}</InputLabel>
         <Select
-          label={label}
           value={String(value ?? "")}
           onChange={(event) =>
+            (onFieldChange?.(field.name),
             setForm((current) =>
               setFieldValue(current, field.name, event.target.value || null),
-            )
+            ))
           }
         >
           <MenuItem value="">-</MenuItem>
@@ -922,6 +1034,7 @@ function renderField(
             </MenuItem>
           ))}
         </Select>
+        <FormHelperText error>{helperText}</FormHelperText>
       </FormControl>
     );
   }
@@ -933,12 +1046,12 @@ function renderField(
       <FormControl key={field.name} fullWidth>
         <InputLabel>{label}</InputLabel>
         <Select
-          label={label}
           value={String(value ?? "")}
           onChange={(event) =>
+            (onFieldChange?.(field.name),
             setForm((current) =>
               setFieldValue(current, field.name, event.target.value || null),
-            )
+            ))
           }
         >
           <MenuItem value="">-</MenuItem>
@@ -950,6 +1063,7 @@ function renderField(
               </MenuItem>
             ))}
         </Select>
+        <FormHelperText error>{helperText}</FormHelperText>
       </FormControl>
     );
   }
@@ -961,20 +1075,21 @@ function renderField(
       <FormControl key={field.name} fullWidth>
         <InputLabel>{label}</InputLabel>
         <Select
-          label={label}
           value={String(value ?? field.options[0] ?? "")}
           onChange={(event) =>
+            (onFieldChange?.(field.name),
             setForm((current) =>
               setFieldValue(current, field.name, event.target.value),
-            )
+            ))
           }
         >
           {field.options.map((option) => (
             <MenuItem key={option} value={option}>
-              {option}
+              {optionLabel(t, option)}
             </MenuItem>
           ))}
         </Select>
+        <FormHelperText error>{helperText}</FormHelperText>
       </FormControl>
     );
   }
@@ -983,25 +1098,17 @@ function renderField(
   const isPhone = isPhoneField(field.name);
   const isIdCardNumber = field.name === "idCardNumber";
   const showPhoneError = isPhone && value !== "" && !isValidPhoneValue(value);
-  const slotProps = {
-    ...(field.type === "date" ? { inputLabel: { shrink: true } } : {}),
-    ...(isPhone
+  const htmlInputProps: React.InputHTMLAttributes<HTMLInputElement> | undefined =
+    isPhone
       ? {
-          htmlInput: {
-            inputMode: "numeric",
-            maxLength: 11,
-            pattern: "[0-9]{11}",
-          },
+          inputMode: "numeric",
+          maxLength: 11,
         }
-      : {}),
-    ...(isIdCardNumber
-      ? {
-          htmlInput: {
+      : isIdCardNumber
+        ? {
             maxLength: 18,
-          },
-        }
-      : {}),
-  };
+          }
+        : undefined;
 
   if (field.type === "password") {
     return (
@@ -1018,9 +1125,12 @@ function renderField(
           )
         }
         autoComplete="new-password"
-        onChange={(nextValue) =>
-          setForm((current) => setFieldValue(current, field.name, nextValue))
-        }
+        onChange={(nextValue) => {
+          onFieldChange?.(field.name);
+          setForm((current) => setFieldValue(current, field.name, nextValue));
+        }}
+        error={hasFieldError}
+        helperText={helperText}
       />
     );
   }
@@ -1037,6 +1147,7 @@ function renderField(
       }
       value={value}
       onChange={(event) => {
+        onFieldChange?.(field.name);
         const nextValue = isPhone
           ? event.target.value.replace(/\D/g, "").slice(0, 11)
           : isIdCardNumber
@@ -1044,9 +1155,9 @@ function renderField(
             : event.target.value;
         setForm((current) => setFieldValue(current, field.name, nextValue));
       }}
-      error={showPhoneError}
-      helperText={showPhoneError ? t.phoneInvalid : undefined}
-      slotProps={Object.keys(slotProps).length ? slotProps : undefined}
+      error={hasFieldError || showPhoneError}
+      helperText={helperText ?? (showPhoneError ? t.phoneInvalid : undefined)}
+      slotProps={htmlInputProps ? { htmlInput: htmlInputProps } : undefined}
     />
   );
 }
@@ -1056,6 +1167,8 @@ function renderImageUploadField(
   form: AnyRow,
   setForm: React.Dispatch<React.SetStateAction<AnyRow>>,
   t: Translation,
+  helperText?: string,
+  onFieldChange?: (fieldName: string) => void,
 ) {
   const value = String(getFieldValue(form, field.name) ?? "");
   const label = fieldLabel(t, field.name);
@@ -1065,6 +1178,7 @@ function renderImageUploadField(
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    onFieldChange?.(field.name);
     if (!IMAGE_UPLOAD_TYPES.has(file.type)) {
       window.alert(t.imageInvalid);
       return;
@@ -1091,43 +1205,31 @@ function renderImageUploadField(
 
   return (
     <Box>
-      <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.75 }}>
+      <Typography variant="body2" color="text.secondary" className="mb-1.5">
         {label}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-        <Box
-          sx={{
-            width: 72,
-            height: 72,
-            borderRadius: 1,
-            border: "1px solid #cfd8d3",
-            bgcolor: "#f5f7f4",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
-            flexShrink: 0,
-          }}
-        >
+      <Stack direction="row" spacing={1.5} className="items-center">
+        <Box className="grid size-[72px] shrink-0 place-items-center overflow-hidden rounded-md border border-[#cfd8d3] bg-[#f5f7f4]">
           {hasImage ? (
             <Box
               component="img"
               src={value}
               alt={label}
-              sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+              className="h-full w-full object-cover"
             />
           ) : (
-            <PhotoCameraIcon color="disabled" />
+            <Camera size={22} className="text-muted-foreground" />
           )}
         </Box>
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={1}
-          sx={{ alignItems: { sm: "center" }, minWidth: 0 }}
+          className="min-w-0 sm:items-center"
         >
           <Button
             component="label"
             variant="outlined"
-            startIcon={<PhotoCameraIcon />}
+            startIcon={<Camera size={16} />}
           >
             {hasImage ? t.changeImage : t.uploadImage}
             <input
@@ -1141,11 +1243,12 @@ function renderImageUploadField(
             <Tooltip title={t.removeImage}>
               <IconButton
                 color="error"
-                onClick={() =>
-                  setForm((current) => setFieldValue(current, field.name, null))
-                }
+                onClick={() => {
+                  onFieldChange?.(field.name);
+                  setForm((current) => setFieldValue(current, field.name, null));
+                }}
               >
-                <DeleteIcon />
+                <Trash2 size={16} />
               </IconButton>
             </Tooltip>
           )}
@@ -1154,6 +1257,7 @@ function renderImageUploadField(
       <Typography variant="caption" color="text.secondary">
         JPG, PNG, GIF, WebP, BMP - 20MB
       </Typography>
+      <FormHelperText error>{helperText}</FormHelperText>
     </Box>
   );
 }
@@ -1163,6 +1267,8 @@ function renderChinaAddressField(
   form: AnyRow,
   setForm: React.Dispatch<React.SetStateAction<AnyRow>>,
   t: Translation,
+  helperText?: string,
+  onFieldChange?: (fieldName: string) => void,
 ) {
   const province = getFieldValue(form, "addressProvince");
   const city = getFieldValue(form, "addressCity");
@@ -1182,6 +1288,7 @@ function renderChinaAddressField(
   const label = formFieldLabel("employees", t, field.name);
 
   function updateAddress(value: string) {
+    onFieldChange?.(field.name);
     setForm((current) => {
       if (field.name === "addressProvince") {
         return {
@@ -1218,7 +1325,14 @@ function renderChinaAddressField(
           updateAddress(nextValue);
         }
       }}
-      renderInput={(params) => <TextField {...params} label={label} />}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={label}
+          error={Boolean(helperText)}
+          helperText={helperText}
+        />
+      )}
     />
   );
 }
@@ -1299,12 +1413,7 @@ function buildGridColumns(
                 component="img"
                 src={String(params.row[column])}
                 alt={headerLabel}
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 1,
-                  objectFit: "cover",
-                }}
+                className="size-9 rounded-md object-cover"
               />
             ) : (
               ""
@@ -1313,11 +1422,7 @@ function buildGridColumns(
           return (
             <Box
               title={value}
-              sx={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              className="overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {value}
             </Box>
@@ -1344,17 +1449,12 @@ function buildGridColumns(
         <Stack
           direction="row"
           spacing={0.5}
-          sx={{
-            alignItems: "center",
-            justifyContent: "flex-end",
-            minHeight: "100%",
-            width: "100%",
-          }}
+          className="min-h-full w-full items-center justify-end"
         >
           {actions.edit && (
             <Tooltip title={t.edit}>
               <IconButton size="small" onClick={() => setEditing(params.row)}>
-                <EditIcon fontSize="small" />
+                <Pencil size={16} />
               </IconButton>
             </Tooltip>
           )}
@@ -1364,7 +1464,7 @@ function buildGridColumns(
                 size="small"
                 onClick={() => setPendingDelete(params.row)}
               >
-                <DeleteIcon fontSize="small" />
+                <Trash2 size={16} />
               </IconButton>
             </Tooltip>
           )}
@@ -1537,6 +1637,13 @@ function fieldLabel(t: Translation, key: string) {
   return (
     t.fields[key as keyof typeof t.fields] ??
     key.replace(/([A-Z])/g, " $1").replace(/^./, (match) => match.toUpperCase())
+  );
+}
+
+function optionLabel(t: Translation, option: string) {
+  return (
+    t.optionLabels[option as keyof typeof t.optionLabels] ??
+    option
   );
 }
 

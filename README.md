@@ -5,13 +5,13 @@ A complete ERP identity and HR foundation module built from the provided Postgre
 ## Stack
 
 - Backend: Java 21, Spring Boot 4, Spring Security, JWT, Spring Data JPA, Flyway
-- Frontend: React 19, Material UI 9, Vite
+- Frontend: Next.js, React 19, Tailwind CSS, shadcn-style components
 - Database: PostgreSQL
 
 ## Structure
 
 - `backend/` - Spring Boot API and PostgreSQL migrations
-- `frontend/` - React/MUI client
+- `frontend/` - Next.js client
 
 ## Run Locally
 
@@ -27,8 +27,8 @@ A complete ERP identity and HR foundation module built from the provided Postgre
 
    ```bash
    cd frontend
-   npm install
-   npm run dev
+   pnpm install
+   pnpm dev
    ```
 
 Default backend configuration can be overridden with environment variables such as `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `JWT_SECRET`.

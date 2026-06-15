@@ -1,30 +1,28 @@
 import { useEffect, useState } from "react";
-import {
-  Box,
-  Button,
-  Divider,
-  IconButton,
-  Paper,
-  Skeleton,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import SaveIcon from "@mui/icons-material/Save";
+import { Button, IconButton } from "@/components/ui/button";
+import { Box, Divider, Paper, Stack } from "@/components/ui/layout";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Typography } from "@/components/ui/typography";
+import { RefreshCw, Save } from "lucide-react";
 import { api } from "../../app/apiClient";
 import {
   settingsFields,
   settingsFormSections,
   settingsSaveFields,
 } from "../../app/schemaConfig";
-import type { Translation } from "../../app/i18n";
+import {
+  apiError,
+  type Translation,
+} from "../../app/i18n";
 import type { AnyRow, Language, Session } from "../../app/types";
 import {
   FormSections,
+  type FieldErrorMap,
+  type PanelErrorState,
   requestBodyFromFields,
-  validateImageFields,
-  validatePhoneFields,
+  renderPanelError,
+  validateFormFields,
 } from "../resources/ResourcePanel";
 
 export function SettingsPanel({
@@ -39,44 +37,35 @@ export function SettingsPanel({
   const [form, setForm] = useState<AnyRow>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PanelErrorState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [saved, setSaved] = useState(false);
 
   async function load() {
-    setError("");
+    setError(null);
+    setFieldErrors({});
     setSaved(false);
     setLoading(true);
     try {
       setForm(await api<AnyRow>("/settings/profile", session));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadFailed);
+      setError(apiError(err, "loadFailed"));
     } finally {
       setLoading(false);
     }
   }
 
   async function save() {
-    setError("");
+    setError(null);
+    setFieldErrors({});
     setSaved(false);
-    const validationError = validatePhoneFields(
+    const nextFieldErrors = validateFormFields(
       settingsSaveFields,
       form,
-      t,
       "settings",
     );
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    const imageValidationError = validateImageFields(
-      settingsSaveFields,
-      form,
-      t,
-    );
-    if (imageValidationError) {
-      setError(imageValidationError);
-      return;
-    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
     setSaving(true);
     try {
       const body = requestBodyFromFields(settingsSaveFields, form);
@@ -88,7 +77,7 @@ export function SettingsPanel({
       );
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      setError(apiError(err, "saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -99,14 +88,14 @@ export function SettingsPanel({
   }, []);
 
   return (
-    <Paper sx={{ overflow: "hidden" }}>
+    <Paper className="overflow-hidden">
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1}
-        sx={{ p: 2, alignItems: { sm: "center" } }}
+        className="p-4 sm:items-center"
       >
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        <Box className="flex-1">
+          <Typography variant="h6">
             {t.resources.settings}
           </Typography>
           {loading ? (
@@ -120,13 +109,13 @@ export function SettingsPanel({
         <Tooltip title={t.refresh}>
           <span>
             <IconButton onClick={load} disabled={loading || saving}>
-              <RefreshIcon />
+              <RefreshCw size={16} />
             </IconButton>
           </span>
         </Tooltip>
         <Button
           variant="contained"
-          startIcon={<SaveIcon />}
+          startIcon={<Save size={16} />}
           onClick={save}
           disabled={loading || saving}
         >
@@ -134,7 +123,7 @@ export function SettingsPanel({
         </Button>
       </Stack>
       <Divider />
-      <Box sx={{ p: 2 }}>
+      <Box className="p-4">
         {loading ? (
           <Stack spacing={2}>
             <Skeleton variant="rounded" height={56} />
@@ -150,6 +139,14 @@ export function SettingsPanel({
               setForm={setForm}
               t={t}
               language={language}
+              fieldErrors={fieldErrors}
+              onFieldChange={(fieldName) =>
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next[fieldName];
+                  return next;
+                })
+              }
               columns={3}
             />
             {saved && (
@@ -159,7 +156,7 @@ export function SettingsPanel({
             )}
             {error && (
               <Typography color="error" variant="body2">
-                {error}
+                {renderPanelError(error, t, language)}
               </Typography>
             )}
           </Stack>

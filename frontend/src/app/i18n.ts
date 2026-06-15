@@ -37,7 +37,10 @@ export const messages = {
     loadFailed: "Unable to load data",
     saveFailed: "Save failed",
     deleteFailed: "Delete failed",
+    fieldRequired: "This field is required",
     passwordRequired: "Password is required for new accounts",
+    idCardInvalid: "ID Card Number must be exactly 18 characters",
+    dateOfBirthFuture: "Date of Birth cannot be a future date",
     forgotPassword: "Forgot Password?",
     forgotPasswordTitle: "Forgot Password",
     securityQuestionSetupTitle: "Security Questions",
@@ -107,6 +110,17 @@ export const messages = {
         "What year did you graduate high school?",
       "What is the name of the hospital where you were born?":
         "What is the name of the hospital where you were born?",
+    },
+    optionLabels: {
+      SPOUSE: "Spouse",
+      PARENT: "Parent",
+      CHILD: "Child",
+      SIBLING: "Sibling",
+      GRANDPARENT: "Grandparent",
+      AUNT_UNCLE: "Aunt / Uncle",
+      COUSIN: "Cousin",
+      NIECE_NEPHEW: "Niece / Nephew",
+      OTHER: "Other",
     },
     fields: {
       employeeNo: "Employee No",
@@ -183,7 +197,10 @@ export const messages = {
     loadFailed: "无法加载数据",
     saveFailed: "保存失败",
     deleteFailed: "删除失败",
+    fieldRequired: "必填项",
     passwordRequired: "新账号必须设置密码",
+    idCardInvalid: "身份证号码必须为 18 位",
+    dateOfBirthFuture: "出生日期不能是未来日期",
     forgotPassword: "忘记密码？",
     forgotPasswordTitle: "忘记密码",
     securityQuestionSetupTitle: "设置安全问题",
@@ -248,6 +265,17 @@ export const messages = {
       "What is the name of the hospital where you were born?":
         "您出生的医院叫什么名字？",
     },
+    optionLabels: {
+      SPOUSE: "配偶",
+      PARENT: "父母",
+      CHILD: "子女",
+      SIBLING: "兄弟姐妹",
+      GRANDPARENT: "祖父母 / 外祖父母",
+      AUNT_UNCLE: "姑姨 / 叔舅",
+      COUSIN: "堂/表兄弟姐妹",
+      NIECE_NEPHEW: "侄/ 甥",
+      OTHER: "其他",
+    },
     fields: {
       employeeNo: "员工编号",
       fullName: "姓名",
@@ -291,11 +319,154 @@ export const messages = {
 } as const;
 
 export type Translation = (typeof messages)[Language];
+export type MessageKey = {
+  [K in keyof Translation]: Translation[K] extends string ? K : never;
+}[keyof Translation];
+
+export type LocalizedErrorState =
+  | { kind: "api"; error: unknown; fallbackKey: MessageKey }
+  | { kind: "message"; key: MessageKey }
+  | { kind: "text"; text: string };
+
+const zhErrorMessages: Record<string, string> = {
+  "Invalid username or password": "用户名或密码不正确",
+  "Validation failed": "校验失败",
+  "Permission not found": "权限不存在",
+  "Role not found": "角色不存在",
+  "Department not found": "部门不存在",
+  "Employee not found": "员工不存在",
+  "Employee profile not found": "员工资料不存在",
+  "Account not found": "账号不存在",
+  "Password is required for new accounts": "新账号必须设置密码",
+  "Unsupported language": "不支持的语言",
+  "Unsupported security question": "不支持的安全问题",
+  "At least 3 security questions are required": "至少需要设置 3 个安全问题",
+  "Security questions must be unique": "安全问题不能重复",
+  "Security question answers are required": "安全问题答案不能为空",
+  "Security questions are not configured for this account":
+    "该账号尚未设置安全问题",
+  "Security answers are incorrect": "安全问题答案不正确",
+  "Reset token is invalid or expired": "重置令牌无效或已过期",
+  "Passwords do not match": "两次输入的密码不一致",
+  "Password must be at least 8 characters and include letters, numbers, and special characters":
+    "密码至少 8 位，并且必须包含字母、数字和特殊字符",
+  "Token was issued before password change": "登录状态已失效，请重新登录",
+  "Invalid or expired token": "登录状态无效或已过期，请重新登录",
+  "Phone must be 11 digits": "电话必须为 11 位数字",
+  "Photo must be 20MB or smaller": "照片大小不能超过 20MB",
+  "Photo must be an uploaded image file": "照片必须是上传的图片文件",
+  "Avatar must be 20MB or smaller": "头像大小不能超过 20MB",
+  "Avatar must be an uploaded image file": "头像必须是上传的图片文件",
+};
+
+const zhErrorFragments: Array<[string, string]> = [
+  ["must not be blank", "不能为空"],
+  ["must not be null", "不能为空"],
+  ["must be 11 digits", "必须为 11 位数字"],
+  ["must be 20MB or smaller", "大小不能超过 20MB"],
+  ["must be an uploaded image file", "必须是上传的图片文件"],
+  ["size must be between", "数量或长度不符合要求"],
+];
+
+const zhFieldNames: Record<string, string> = {
+  username: "用户名",
+  password: "密码",
+  language: "语言",
+  answers: "安全问题",
+  question: "安全问题",
+  answer: "答案",
+  resetToken: "重置令牌",
+  newPassword: "新密码",
+  confirmPassword: "确认密码",
+  employeeId: "员工",
+  status: "状态",
+  accountType: "账号类型",
+  avatar: "头像",
+  employeeNo: "员工编号",
+  fullName: "姓名",
+  idCardNumber: "身份证号码",
+  gender: "性别",
+  dateOfBirth: "出生日期",
+  jobTitle: "职位",
+  hireDate: "入职日期",
+  phone: "电话",
+  photo: "照片",
+};
+
+function localizeValidationMessage(message: string) {
+  for (const [source, translation] of Object.entries(zhErrorMessages)) {
+    if (message.endsWith(` ${source}`)) return translation;
+  }
+  for (const [fragment, translation] of zhErrorFragments) {
+    if (message.includes(fragment)) {
+      const field = message
+        .slice(0, message.indexOf(fragment))
+        .trim()
+        .split(/\s+/)[0];
+      const fieldName = zhFieldNames[field] ?? field;
+      return fieldName ? `${fieldName}${translation}` : translation;
+    }
+  }
+  return undefined;
+}
+
+export function translateErrorMessage(
+  message: string,
+  language: Language,
+): string {
+  if (language !== "zh-CN") return message;
+  if (zhErrorMessages[message]) return zhErrorMessages[message];
+  const validationMessage = localizeValidationMessage(message);
+  if (validationMessage) return validationMessage;
+  const requestFailed = message.match(/^Request failed: (\d+)$/);
+  if (requestFailed) return `请求失败：${requestFailed[1]}`;
+  return message;
+}
+
+export function localizedErrorMessage(
+  error: unknown,
+  fallback: string,
+  language: Language,
+) {
+  return error instanceof Error && error.message
+    ? translateErrorMessage(error.message, language)
+    : fallback;
+}
+
+export function apiError(
+  error: unknown,
+  fallbackKey: MessageKey,
+): LocalizedErrorState {
+  return { kind: "api", error, fallbackKey };
+}
+
+export function messageError(key: MessageKey): LocalizedErrorState {
+  return { kind: "message", key };
+}
+
+export function textError(text: string): LocalizedErrorState {
+  return { kind: "text", text };
+}
+
+export function renderLocalizedError(
+  error: LocalizedErrorState,
+  t: Translation,
+  language: Language,
+) {
+  if (error.kind === "message") return String(t[error.key]);
+  if (error.kind === "text") return error.text;
+  return localizedErrorMessage(
+    error.error,
+    String(t[error.fallbackKey]),
+    language,
+  );
+}
 
 export function getPreferredLanguage(session?: Session | null): Language {
-  const stored = localStorage.getItem("hcerp-language");
   if (session?.language === "zh-CN" || session?.language === "en")
     return session.language;
+  if (typeof window === "undefined") return "zh-CN";
+  const stored = window.localStorage.getItem("hcerp-language");
   if (stored === "zh-CN" || stored === "en") return stored;
   return "zh-CN";
 }
