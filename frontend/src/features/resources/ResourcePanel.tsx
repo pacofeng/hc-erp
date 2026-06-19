@@ -31,6 +31,7 @@ import {
   pageSizeOptions,
 } from "../../app/constants";
 import { api } from "../../app/apiClient";
+import { useToast } from "../../app/toast";
 import { canUseResourceAction } from "../../app/resources";
 import {
   employeeFormSections,
@@ -169,6 +170,7 @@ export function ResourcePanel({
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<PanelErrorState | null>(null);
+  const { showToast } = useToast();
   const actions = useMemo(
     () => ({
       create: canUseResourceAction(resource, "create", session),
@@ -201,7 +203,12 @@ export function ResourcePanel({
         setReferences({ departments: nextRows, employees, accounts: [] });
       }
     } catch (err) {
-      setError(apiError(err, "loadFailed"));
+      const nextError = apiError(err, "loadFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -217,9 +224,15 @@ export function ResourcePanel({
     try {
       await api<void>(`/${resource}/${row.id}`, session, { method: "DELETE" });
       setPendingDelete(null);
+      showToast({ message: t.deleted, variant: "success" });
       await load();
     } catch (err) {
-      setError(apiError(err, "deleteFailed"));
+      const nextError = apiError(err, "deleteFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -411,6 +424,7 @@ function EditDialog({
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [assignmentState, setAssignmentState] =
     useState<AssignmentState | null>(null);
+  const { showToast } = useToast();
   const assignmentType =
     row.id && resource === "accounts"
       ? "account"
@@ -444,9 +458,18 @@ function EditDialog({
       if (assignmentType && assignmentState && row.id) {
         await syncAssignments(row.id, assignmentState, session);
       }
+      showToast({
+        message: row.id ? t.updated : t.created,
+        variant: "success",
+      });
       onSaved();
     } catch (err) {
-      setError(apiError(err, "saveFailed"));
+      const nextError = apiError(err, "saveFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -668,6 +691,7 @@ function AssignmentSection({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<PanelErrorState | null>(null);
+  const { showToast } = useToast();
   const targetIdKey = type === "account" ? "roleId" : "permissionId";
   const selectLabel = type === "account" ? t.accountRoles : t.rolePermissions;
 
@@ -692,7 +716,12 @@ function AssignmentSection({
       setSelectedIds(loadedIds);
       onChange({ type, originalIds: loadedIds, selectedIds: loadedIds });
     } catch (err) {
-      setError(apiError(err, "loadFailed"));
+      const nextError = apiError(err, "loadFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     } finally {
       setLoading(false);
     }

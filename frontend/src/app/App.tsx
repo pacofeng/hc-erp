@@ -23,13 +23,14 @@ import {
 import { api } from "./apiClient";
 import { Login, SecurityQuestionSetup } from "../features/auth/AuthPages";
 import { Shell } from "../features/shell/AppShell";
-import { getPreferredLanguage, messages } from "./i18n";
+import { getPreferredLanguage, localizedErrorMessage, messages } from "./i18n";
 import {
   getResourceFromPath,
   getStoredResource,
   navigate,
   resourcePath,
 } from "./resources";
+import { ToastProvider, useToast } from "./toast";
 import type { Language, Session } from "./types";
 
 function isBrowser() {
@@ -49,6 +50,14 @@ function readStoredSession(): Session | null {
 }
 
 export function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [routeVersion, setRouteVersion] = useState(0);
@@ -59,6 +68,7 @@ export function App() {
   );
   const inactivityWarningVisibleRef = useRef(false);
   const t = messages[language];
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!isBrowser()) return;
@@ -113,10 +123,25 @@ export function App() {
         JSON.stringify(updatedSession),
       );
     }
-    await api("/auth/language", updatedSession, {
-      method: "PUT",
-      body: JSON.stringify({ language: nextLanguage }),
-    });
+    try {
+      await api("/auth/language", updatedSession, {
+        method: "PUT",
+        body: JSON.stringify({ language: nextLanguage }),
+      });
+      showToast({
+        message: messages[nextLanguage].languageSaved,
+        variant: "success",
+      });
+    } catch (err) {
+      showToast({
+        message: localizedErrorMessage(
+          err,
+          messages[nextLanguage].saveFailed,
+          nextLanguage,
+        ),
+        variant: "error",
+      });
+    }
   }
 
   useEffect(() => {

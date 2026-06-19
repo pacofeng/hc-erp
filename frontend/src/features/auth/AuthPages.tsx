@@ -13,6 +13,7 @@ import { MenuItem, Select } from "@/components/ui/select";
 import { Typography } from "@/components/ui/typography";
 import { Save, Shield } from "lucide-react";
 import { api } from "../../app/apiClient";
+import { useToast } from "../../app/toast";
 import {
   apiError,
   messageError,
@@ -61,6 +62,7 @@ export function Login({
   const [error, setError] = useState<LocalizedErrorState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [forgotOpen, setForgotOpen] = useState(false);
+  const { showToast } = useToast();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -84,7 +86,12 @@ export function Login({
       }
       onLogin(sessionWithSelectedLanguage);
     } catch (err) {
-      setFieldErrors({ password: apiError(err, "loginFailed") });
+      const nextError = apiError(err, "loginFailed");
+      setFieldErrors({ password: nextError });
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -178,6 +185,7 @@ export function SecurityQuestionSetup({
   ]);
   const [error, setError] = useState<LocalizedErrorState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+  const { showToast } = useToast();
 
   useEffect(() => {
     void api<{ questions: string[] }>("/auth/security-questions/options")
@@ -190,7 +198,14 @@ export function SecurityQuestionSetup({
           })),
         );
       })
-      .catch((err) => setError(apiError(err, "loadFailed")));
+      .catch((err) => {
+        const nextError = apiError(err, "loadFailed");
+        setError(nextError);
+        showToast({
+          message: renderLocalizedError(nextError, t, language),
+          variant: "error",
+        });
+      });
   }, [t.loadFailed]);
 
   async function save() {
@@ -222,9 +237,15 @@ export function SecurityQuestionSetup({
         method: "PUT",
         body: JSON.stringify({ answers }),
       });
+      showToast({ message: t.securityQuestionsSaved, variant: "success" });
       onSaved();
     } catch (err) {
-      setError(apiError(err, "saveFailed"));
+      const nextError = apiError(err, "saveFailed");
+      setError(nextError);
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -347,6 +368,7 @@ function ForgotPasswordDialog({
   const [success, setSuccess] = useState("");
   const [error, setError] = useState<LocalizedErrorState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!open) return;
@@ -382,7 +404,12 @@ function ForgotPasswordDialog({
       setQuestionIndex(result.questionIndex);
       setAnswer("");
     } catch (err) {
-      setFieldErrors({ username: apiError(err, "loadFailed") });
+      const nextError = apiError(err, "loadFailed");
+      setFieldErrors({ username: nextError });
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -404,7 +431,12 @@ function ForgotPasswordDialog({
       );
       setResetToken(result.resetToken);
     } catch (err) {
-      setFieldErrors({ answer: apiError(err, "saveFailed") });
+      const nextError = apiError(err, "saveFailed");
+      setFieldErrors({ answer: nextError });
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 
@@ -432,6 +464,7 @@ function ForgotPasswordDialog({
         }),
       });
       setSuccess(t.passwordResetSuccess);
+      showToast({ message: t.passwordResetSuccess, variant: "success" });
       setResetToken("");
       setQuestion("");
       setQuestionIndex(null);
@@ -439,7 +472,12 @@ function ForgotPasswordDialog({
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setFieldErrors({ confirmPassword: apiError(err, "saveFailed") });
+      const nextError = apiError(err, "saveFailed");
+      setFieldErrors({ confirmPassword: nextError });
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
     }
   }
 

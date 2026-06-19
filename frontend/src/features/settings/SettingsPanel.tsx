@@ -6,6 +6,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Typography } from "@/components/ui/typography";
 import { RefreshCw, Save } from "lucide-react";
 import { api } from "../../app/apiClient";
+import { useToast } from "../../app/toast";
 import {
   settingsFields,
   settingsFormSections,
@@ -40,6 +41,7 @@ export function SettingsPanel({
   const [error, setError] = useState<PanelErrorState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [saved, setSaved] = useState(false);
+  const { showToast } = useToast();
 
   async function load() {
     setError(null);
@@ -49,7 +51,12 @@ export function SettingsPanel({
     try {
       setForm(await api<AnyRow>("/settings/profile", session));
     } catch (err) {
-      setError(apiError(err, "loadFailed"));
+      const nextError = apiError(err, "loadFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -76,8 +83,14 @@ export function SettingsPanel({
         }),
       );
       setSaved(true);
+      showToast({ message: t.saved, variant: "success" });
     } catch (err) {
-      setError(apiError(err, "saveFailed"));
+      const nextError = apiError(err, "saveFailed");
+      setError(nextError);
+      showToast({
+        message: renderPanelError(nextError, t, language),
+        variant: "error",
+      });
     } finally {
       setSaving(false);
     }
