@@ -19,6 +19,7 @@ import {
 import type { AnyRow, Language, Session } from "../../app/types";
 import {
   FormSections,
+  renderImageUploadField,
   type FieldErrorMap,
   type PanelErrorState,
   requestBodyFromFields,
@@ -42,6 +43,16 @@ export function SettingsPanel({
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [saved, setSaved] = useState(false);
   const { showToast } = useToast();
+  const avatarField = settingsFields.find((field) => field.name === "avatar");
+  const avatarErrorKey = fieldErrors.avatar;
+
+  function handleFieldChange(fieldName: string) {
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[fieldName];
+      return next;
+    });
+  }
 
   async function load() {
     setError(null);
@@ -145,23 +156,31 @@ export function SettingsPanel({
           </Stack>
         ) : (
           <Stack spacing={2}>
-            <FormSections
-              sections={settingsFormSections}
-              fields={settingsFields}
-              form={form}
-              setForm={setForm}
-              t={t}
-              language={language}
-              fieldErrors={fieldErrors}
-              onFieldChange={(fieldName) =>
-                setFieldErrors((current) => {
-                  const next = { ...current };
-                  delete next[fieldName];
-                  return next;
-                })
-              }
-              columns={3}
-            />
+            <Box className="grid grid-cols-1 gap-6 lg:grid-cols-[180px_minmax(0,1fr)]">
+              <Box className="lg:border-r lg:border-border lg:pr-6">
+                {avatarField &&
+                  renderImageUploadField(
+                    avatarField,
+                    form,
+                    setForm,
+                    t,
+                    avatarErrorKey ? String(t[avatarErrorKey]) : undefined,
+                    handleFieldChange,
+                    true,
+                  )}
+              </Box>
+              <FormSections
+                sections={settingsFormSections}
+                fields={settingsFields}
+                form={form}
+                setForm={setForm}
+                t={t}
+                language={language}
+                fieldErrors={fieldErrors}
+                onFieldChange={handleFieldChange}
+                columns={3}
+              />
+            </Box>
             {saved && (
               <Typography color="success.main" variant="body2">
                 {t.saved}

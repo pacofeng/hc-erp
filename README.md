@@ -2,6 +2,8 @@
 
 A complete ERP identity and HR foundation module built from the provided PostgreSQL schema.
 
+See the [Functional Specification](docs/FUNCTIONAL_SPECIFICATION.md) for the implemented UI flows, REST APIs, permissions, validation rules, and database design.
+
 ## Stack
 
 - Backend: Java 21, Spring Boot 4, Spring Security, JWT, Spring Data JPA, Flyway

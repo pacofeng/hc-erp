@@ -55,13 +55,7 @@ public class AuthController {
         account.lastLoginIp = servletRequest.getRemoteAddr();
         account.failedLoginCount = 0;
         accounts.save(account);
-        return Map.of(
-                "token", jwtService.createToken(user),
-                "accountId", account.id,
-                "username", account.username,
-                "language", account.preferredLanguage,
-                "securityQuestionsConfigured", Boolean.TRUE.equals(account.securityQuestionsConfigured),
-                "authorities", user.getAuthorities().stream().map(Object::toString).toList());
+        return sessionResponse(user);
     }
 
     @GetMapping("/me")
@@ -71,8 +65,22 @@ public class AuthController {
                 "username", user.getUsername(),
                 "employeeId", user.account().employeeId == null ? "" : user.account().employeeId,
                 "language", user.account().preferredLanguage,
+                "mustChangePassword", Boolean.TRUE.equals(user.account().mustChangePassword),
                 "securityQuestionsConfigured", Boolean.TRUE.equals(user.account().securityQuestionsConfigured),
                 "authorities", user.getAuthorities().stream().map(Object::toString).toList());
+    }
+
+    @PutMapping("/change-password")
+    public Map<String, Object> changePassword(@AuthenticationPrincipal ErpUserDetails user,
+                                              @Valid @RequestBody ChangePasswordRequest request) {
+        validatePasswordStrength(request.newPassword(), request.confirmPassword());
+        var account = user.account();
+        account.passwordHash = passwordEncoder.encode(request.newPassword());
+        account.passwordChangedAt = OffsetDateTime.now();
+        account.passwordVersion = account.passwordVersion == null ? 1 : account.passwordVersion + 1;
+        account.mustChangePassword = false;
+        accounts.save(account);
+        return sessionResponse(user);
     }
 
     @PutMapping("/language")
@@ -170,9 +178,22 @@ public class AuthController {
         account.passwordHash = passwordEncoder.encode(request.newPassword());
         account.passwordChangedAt = OffsetDateTime.now();
         account.passwordVersion = account.passwordVersion == null ? 1 : account.passwordVersion + 1;
+        account.mustChangePassword = false;
         securityQuestionService.clearResetToken(account);
         accounts.save(account);
         return Map.of("success", true);
+    }
+
+    private Map<String, Object> sessionResponse(ErpUserDetails user) {
+        return Map.of(
+                "token", jwtService.createToken(user),
+                "accountId", user.account().id,
+                "username", user.account().username,
+                "employeeId", user.account().employeeId == null ? "" : user.account().employeeId,
+                "language", user.account().preferredLanguage,
+                "mustChangePassword", Boolean.TRUE.equals(user.account().mustChangePassword),
+                "securityQuestionsConfigured", Boolean.TRUE.equals(user.account().securityQuestionsConfigured),
+                "authorities", user.getAuthorities().stream().map(Object::toString).toList());
     }
 
     private void validatePasswordStrength(String newPassword, String confirmPassword) {
@@ -212,5 +233,8 @@ public class AuthController {
 
     public record ForgotPasswordResetRequest(@NotBlank String username, @NotBlank String resetToken,
                                              @NotBlank String newPassword, @NotBlank String confirmPassword) {
+    }
+
+    public record ChangePasswordRequest(@NotBlank String newPassword, @NotBlank String confirmPassword) {
     }
 }

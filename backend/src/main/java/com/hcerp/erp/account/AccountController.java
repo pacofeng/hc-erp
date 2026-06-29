@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hcerp.erp.common.Enums.AccountStatus;
 import com.hcerp.erp.common.Enums.AccountType;
+import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.NotFoundException;
+import com.hcerp.erp.employee.EmployeeRepository;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -31,10 +33,12 @@ import jakarta.validation.constraints.Size;
 @PreAuthorize("hasRole('SYSTEM_ADMIN')")
 public class AccountController {
     private final AccountRepository accounts;
+    private final EmployeeRepository employees;
     private final PasswordEncoder passwordEncoder;
 
-    public AccountController(AccountRepository accounts, PasswordEncoder passwordEncoder) {
+    public AccountController(AccountRepository accounts, EmployeeRepository employees, PasswordEncoder passwordEncoder) {
         this.accounts = accounts;
+        this.employees = employees;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -48,8 +52,17 @@ public class AccountController {
         if (request.password() == null || request.password().isBlank()) {
             throw new IllegalArgumentException("Password is required for new accounts");
         }
+        if (request.employeeId() == null) {
+            throw new IllegalArgumentException("Employee is required for new accounts");
+        }
+        if (accounts.existsByUsername(request.username())) {
+            throw new IllegalArgumentException("Username already exists");
+        }
+        validatePasswordStrength(request.password());
         Account account = new Account();
-        apply(account, request);
+        apply(account, request, true);
+        account.accountType = AccountType.USER;
+        account.mustChangePassword = true;
         account.passwordHash = passwordEncoder.encode(request.password());
         account.passwordChangedAt = OffsetDateTime.now();
         return AccountView.from(accounts.save(account));
@@ -58,11 +71,13 @@ public class AccountController {
     @PutMapping("/{id}")
     public AccountView update(@PathVariable UUID id, @Valid @RequestBody AccountRequest request) {
         Account account = accounts.findById(id).orElseThrow(() -> new NotFoundException("Account not found"));
-        apply(account, request);
+        apply(account, request, false);
         if (request.password() != null && !request.password().isBlank()) {
+            validatePasswordStrength(request.password());
             account.passwordHash = passwordEncoder.encode(request.password());
             account.passwordChangedAt = OffsetDateTime.now();
             account.passwordVersion = account.passwordVersion == null ? 1 : account.passwordVersion + 1;
+            account.mustChangePassword = true;
         }
         return AccountView.from(accounts.save(account));
     }
@@ -78,12 +93,29 @@ public class AccountController {
         accounts.deleteById(id);
     }
 
-    private void apply(Account account, AccountRequest request) {
+    private void validatePasswordStrength(String password) {
+        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
+        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
+        boolean hasSpecial = password.chars().anyMatch(ch -> !Character.isLetterOrDigit(ch));
+        if (password.length() < 8 || !(hasLetter && hasDigit && hasSpecial)) {
+            throw new IllegalArgumentException(
+                    "Password must be at least 8 characters and include letters, numbers, and special characters");
+        }
+    }
+
+    private void apply(Account account, AccountRequest request, boolean creating) {
+        if (creating) {
+            var employee = employees.findById(request.employeeId())
+                    .orElseThrow(() -> new NotFoundException("Employee not found"));
+            if (employee.status != EmployeeStatus.ACTIVE) {
+                throw new IllegalArgumentException("Account can only be created for an active employee");
+            }
+        }
         account.employeeId = request.employeeId();
-        account.username = request.username();
+        if (creating) {
+            account.username = request.username();
+        }
         account.status = request.status();
-        account.accountType = request.accountType();
-        account.mustChangePassword = Boolean.TRUE.equals(request.mustChangePassword());
         account.avatar = request.avatar();
         String preferredLanguage = request.preferredLanguage() == null || request.preferredLanguage().isBlank()
                 ? "zh-CN"
@@ -99,8 +131,6 @@ public class AccountController {
             @NotBlank String username,
             String password,
             @NotNull AccountStatus status,
-            @NotNull AccountType accountType,
-            Boolean mustChangePassword,
             @Size(max = 30000000, message = "Avatar must be 20MB or smaller")
             @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Avatar must be an uploaded image file")
             String avatar,

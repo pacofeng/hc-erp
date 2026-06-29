@@ -3,7 +3,6 @@ package com.hcerp.erp.department;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-import com.hcerp.erp.common.Enums.DepartmentCode;
 import com.hcerp.erp.common.Enums.DepartmentStatus;
 
 import jakarta.persistence.Entity;
@@ -19,8 +18,7 @@ import jakarta.persistence.Table;
 public class Department {
     @Id
     public UUID id;
-    @Enumerated(EnumType.STRING)
-    public DepartmentCode code;
+    public String code;
     public String name;
     public UUID managerId;
     @Enumerated(EnumType.STRING)

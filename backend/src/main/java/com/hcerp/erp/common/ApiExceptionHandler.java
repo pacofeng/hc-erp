@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,6 +35,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<Map<String, Object>> illegalArgument(IllegalArgumentException ex) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<Map<String, Object>> dataIntegrity(DataIntegrityViolationException ex) {
+        return error(HttpStatus.CONFLICT, "Duplicate value already exists");
     }
 
     private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {

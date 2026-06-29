@@ -8,7 +8,6 @@ CREATE TABLE departments (
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    CONSTRAINT chk_department_code CHECK (code IN ('SYS', 'HR')),
     CONSTRAINT chk_department_status CHECK (status IN ('ACTIVE', 'INACTIVE'))
 );
 
@@ -28,8 +27,8 @@ CREATE TABLE employees (
     photo TEXT,
     department_id UUID REFERENCES departments(id),
     manager_id UUID REFERENCES employees(id),
-    job_title VARCHAR(100),
-    hire_date DATE,
+    job_title VARCHAR(100) NOT NULL,
+    hire_date DATE NOT NULL,
     termination_date DATE,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -56,13 +55,13 @@ CREATE TABLE emergency_contact (
 
 CREATE TABLE accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    employee_id UUID UNIQUE REFERENCES employees(id),
+    employee_id UUID UNIQUE NOT NULL REFERENCES employees(id),
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     account_type VARCHAR(50) NOT NULL DEFAULT 'USER',
     failed_login_count INTEGER DEFAULT 0,
-    must_change_password BOOLEAN DEFAULT FALSE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
     preferred_language VARCHAR(10) NOT NULL DEFAULT 'zh-CN',
     avatar TEXT,
     security_questions_configured BOOLEAN NOT NULL DEFAULT FALSE,
@@ -104,7 +103,7 @@ CREATE TABLE roles (
     description TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    CONSTRAINT chk_role_code CHECK (code IN ('SYSTEM_ADMIN', 'HR_MANAGER', 'HR_OFFICE')),
+    CONSTRAINT chk_role_code CHECK (code IN ('SYSTEM_ADMIN')),
     CONSTRAINT chk_role_status CHECK (status IN ('ACTIVE', 'INACTIVE'))
 );
 
@@ -159,13 +158,26 @@ CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_i
 INSERT INTO departments (code, name, status)
 VALUES
     ('SYS', 'System', 'ACTIVE'),
-    ('HR', 'Human Resources', 'ACTIVE');
+    ('MGMT', 'Management', 'ACTIVE'),
+    ('FIN', 'Finance', 'ACTIVE'),
+    ('PROC', 'Procurement', 'ACTIVE'),
+    ('DS', 'Domestic Sales', 'ACTIVE'),
+    ('IS', 'International Sales', 'ACTIVE'),
+    ('ADMIN', 'Administration', 'ACTIVE'),
+    ('AFTER', 'After-Sales', 'ACTIVE'),
+    ('RES', 'Research', 'ACTIVE'),
+    ('MECH', 'Mechanical Processing', 'ACTIVE'),
+    ('FIT', 'Fitter Workshop', 'ACTIVE'),
+    ('QASM', 'Quilting Machine Assembly', 'ACTIVE'),
+    ('CASM', 'Cutting Machine Assembly', 'ACTIVE'),
+    ('PAINT', 'Painting', 'ACTIVE'),
+    ('ELEC', 'Electrical', 'ACTIVE'),
+    ('WH', 'Warehouse', 'ACTIVE'),
+    ('LOG', 'Logistics', 'ACTIVE');
 
 INSERT INTO roles (name, code, status, description)
 VALUES
-    ('System Administrator', 'SYSTEM_ADMIN', 'ACTIVE', 'Full system administration access'),
-    ('HR Manager', 'HR_MANAGER', 'ACTIVE', 'Human resources management access'),
-    ('HR Office', 'HR_OFFICE', 'ACTIVE', 'Human resources office access');
+    ('System Administrator', 'SYSTEM_ADMIN', 'ACTIVE', 'Full system administration access');
 
 INSERT INTO permissions (code, name, description, module_code)
 VALUES
@@ -182,10 +194,70 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT role.id, permission.id
 FROM roles role
 CROSS JOIN permissions permission
-WHERE role.code IN ('SYSTEM_ADMIN', 'HR_MANAGER');
+WHERE role.code = 'SYSTEM_ADMIN';
 
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT role.id, permission.id
-FROM roles role
-JOIN permissions permission ON permission.code IN ('EMPLOYEE_VIEW', 'DEPARTMENT_VIEW')
-WHERE role.code = 'HR_OFFICE';
+WITH admin_department AS (
+    SELECT id
+    FROM departments
+    WHERE code = 'ADMIN'
+),
+sample_employees AS (
+    SELECT
+        series.value AS row_no,
+        CASE WHEN series.value <= 25 THEN NULL ELSE admin_department.id END AS department_id,
+        (ARRAY[
+            'Olivia Chen', 'Noah Wang', 'Emma Li', 'Liam Zhang', 'Ava Liu',
+            'Mason Yang', 'Sophia Huang', 'Ethan Zhao', 'Mia Wu', 'Lucas Zhou',
+            'Amelia Xu', 'Logan Sun', 'Harper Ma', 'James Zhu', 'Evelyn Hu',
+            'Benjamin Guo', 'Abigail He', 'Henry Gao', 'Emily Lin', 'Alexander Luo',
+            'Ella Zheng', 'Daniel Liang', 'Scarlett Xie', 'Michael Song', 'Grace Tang',
+            'Chloe Pan', 'Jacob Cai', 'Victoria Fang', 'Samuel Deng', 'Lily Han',
+            'David Qin', 'Nora Yu', 'Isaac Shen', 'Zoey Jiang', 'Owen Cheng',
+            'Hannah Ye', 'Leo Fu', 'Stella Wei', 'Nathan Jin', 'Aurora Qian',
+            'Ryan Lu', 'Bella Xiong', 'Caleb Shi', 'Lucy Ren', 'Dylan Tian',
+            'Alice Cao', 'Aaron Fan', 'Ruby Yao', 'Julian Kong', 'Ivy Meng'
+        ])[series.value] AS full_name,
+        (ARRAY[
+            'HR Specialist', 'Payroll Analyst', 'Recruiter', 'Benefits Coordinator', 'Training Coordinator',
+            'Office Administrator', 'Operations Associate', 'Compliance Associate', 'People Operations Analyst',
+            'Employee Relations Specialist'
+        ])[((series.value - 1) % 10) + 1] AS job_title
+    FROM generate_series(1, 50) AS series(value)
+    CROSS JOIN admin_department
+),
+inserted_employees AS (
+    INSERT INTO employees (
+        employee_no,
+        full_name,
+        id_card_number,
+        gender,
+        date_of_birth,
+        married_status,
+        phone,
+        department_id,
+        manager_id,
+        job_title,
+        hire_date,
+        termination_date,
+        status
+    )
+    SELECT
+        'EMP' || LPAD(row_no::TEXT, 5, '0'),
+        full_name,
+        '9' || LPAD(row_no::TEXT, 17, '0'),
+        CASE WHEN row_no % 2 = 0 THEN 'FEMALE' ELSE 'MALE' END,
+        (CURRENT_DATE - ((25 + (row_no % 20)) || ' years')::INTERVAL)::DATE,
+        CASE WHEN row_no % 3 = 0 THEN 'MARRIED' ELSE 'SINGLE' END,
+        '139000' || LPAD((10000 + row_no)::TEXT, 5, '0'),
+        department_id,
+        NULL,
+        job_title,
+        (CURRENT_DATE - ((30 + (row_no * 17)) || ' days')::INTERVAL)::DATE,
+        NULL,
+        'ACTIVE'
+    FROM sample_employees
+    RETURNING id, full_name, phone
+)
+INSERT INTO emergency_contact (employee_id, full_name, phone, relation)
+SELECT id, full_name, phone, 'Emergency Contact'
+FROM inserted_employees;

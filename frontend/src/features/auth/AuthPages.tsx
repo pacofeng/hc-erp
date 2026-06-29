@@ -6,7 +6,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormControl, FormHelperText, InputLabel } from "@/components/ui/form";
+import { FormControl, FormHelperText } from "@/components/ui/form";
 import { TextField } from "@/components/ui/input";
 import { Box, Paper, Stack } from "@/components/ui/layout";
 import { MenuItem, Select } from "@/components/ui/select";
@@ -16,6 +16,7 @@ import { api } from "../../app/apiClient";
 import { useToast } from "../../app/toast";
 import {
   apiError,
+  messages,
   messageError,
   renderLocalizedError,
   type LocalizedErrorState,
@@ -62,6 +63,8 @@ export function Login({
   const [error, setError] = useState<LocalizedErrorState | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [pendingPasswordResetSession, setPendingPasswordResetSession] =
+    useState<Session | null>(null);
   const { showToast } = useToast();
 
   async function submit(event: FormEvent) {
@@ -77,14 +80,19 @@ export function Login({
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-      const sessionWithSelectedLanguage = { ...result, language };
-      if (result.language !== language) {
-        void api("/auth/language", sessionWithSelectedLanguage, {
-          method: "PUT",
-          body: JSON.stringify({ language }),
-        });
+      const accountLanguage =
+        result.language === "en" || result.language === "zh-CN"
+          ? result.language
+          : language;
+      const sessionWithAccountLanguage = { ...result, language: accountLanguage };
+      if (accountLanguage !== language) {
+        void onLanguageChange(accountLanguage);
       }
-      onLogin(sessionWithSelectedLanguage);
+      if (result.mustChangePassword) {
+        setPendingPasswordResetSession(sessionWithAccountLanguage);
+        return;
+      }
+      onLogin(sessionWithAccountLanguage);
     } catch (err) {
       const nextError = apiError(err, "loginFailed");
       setFieldErrors({ password: nextError });
@@ -157,8 +165,134 @@ export function Login({
           t={t}
           onClose={() => setForgotOpen(false)}
         />
+        {pendingPasswordResetSession && (
+          <MustChangePasswordDialog
+            session={pendingPasswordResetSession}
+            language={pendingPasswordResetSession.language ?? language}
+            t={messages[pendingPasswordResetSession.language ?? language]}
+            onSaved={(nextSession) =>
+              onLogin({
+                ...nextSession,
+                language: nextSession.language ?? pendingPasswordResetSession.language,
+              })
+            }
+            onCancel={() => setPendingPasswordResetSession(null)}
+          />
+        )}
       </Paper>
     </PublicPageShell>
+  );
+}
+
+function MustChangePasswordDialog({
+  session,
+  language,
+  t,
+  onSaved,
+  onCancel,
+}: {
+  session: Session;
+  language: Language;
+  t: Translation;
+  onSaved: (session: Session) => void;
+  onCancel: () => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+  const [error, setError] = useState<LocalizedErrorState | null>(null);
+  const { showToast } = useToast();
+
+  async function save() {
+    setError(null);
+    const nextFieldErrors: FieldErrorMap = {};
+    if (!newPassword.trim()) nextFieldErrors.newPassword = requiredError();
+    if (!confirmPassword.trim()) nextFieldErrors.confirmPassword = requiredError();
+    if (!isStrongPassword(newPassword)) {
+      nextFieldErrors.newPassword = messageError("passwordStrengthHint");
+    }
+    if (newPassword !== confirmPassword) {
+      nextFieldErrors.confirmPassword = messageError("passwordsDoNotMatch");
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) return;
+
+    try {
+      const nextSession = await api<Session>("/auth/change-password", session, {
+        method: "PUT",
+        body: JSON.stringify({ newPassword, confirmPassword }),
+      });
+      showToast({ message: t.passwordResetSuccess, variant: "success" });
+      onSaved({ ...nextSession, mustChangePassword: false });
+    } catch (err) {
+      const nextError = apiError(err, "saveFailed");
+      setError(nextError);
+      showToast({
+        message: renderLocalizedError(nextError, t, language),
+        variant: "error",
+      });
+    }
+  }
+
+  return (
+    <Dialog open maxWidth="sm" fullWidth>
+      <DialogTitle>{t.mustChangePasswordTitle}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} className="pt-2">
+          <Typography variant="body2">{t.mustChangePasswordMessage}</Typography>
+          <PasswordTextField
+            label={t.newPassword}
+            value={newPassword}
+            onChange={(value) => {
+              setNewPassword(value);
+              setFieldErrors((current) => clearFieldError(current, "newPassword"));
+            }}
+            autoComplete="new-password"
+            required
+            error={Boolean(fieldErrors.newPassword)}
+            helperText={fieldErrorText(
+              fieldErrors,
+              "newPassword",
+              t,
+              language,
+            )}
+          />
+          <PasswordTextField
+            label={t.confirmPassword}
+            value={confirmPassword}
+            onChange={(value) => {
+              setConfirmPassword(value);
+              setFieldErrors((current) =>
+                clearFieldError(current, "confirmPassword"),
+              );
+            }}
+            autoComplete="new-password"
+            required
+            error={Boolean(fieldErrors.confirmPassword)}
+            helperText={fieldErrorText(
+              fieldErrors,
+              "confirmPassword",
+              t,
+              language,
+            )}
+          />
+          <Typography variant="caption" color="text.secondary">
+            {t.passwordStrengthHint}
+          </Typography>
+          {error && (
+            <Typography color="error" variant="body2">
+              {renderLocalizedError(error, t, language)}
+            </Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel}>{t.cancel}</Button>
+        <Button variant="contained" onClick={save}>
+          {t.resetPassword}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -269,8 +403,9 @@ export function SecurityQuestionSetup({
           {answers.map((answer, index) => (
             <Stack key={index} spacing={1.5}>
               <FormControl fullWidth>
-                <InputLabel>{t.securityQuestion}</InputLabel>
                 <Select
+                  label={t.securityQuestion}
+                  required
                   value={answer.question}
                   onChange={(event) =>
                     (setFieldErrors((current) =>

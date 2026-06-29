@@ -21,11 +21,27 @@ export const employeeTableColumns = [
   "hireDate",
 ];
 
+export const departmentTableColumns = [
+  "code",
+  "name",
+  "managerId",
+  "employeeCount",
+  "status",
+];
+
+export const accountTableColumns = [
+  "employeeId",
+  "username",
+  "status",
+  "preferredLanguage",
+  "securityQuestionsConfigured",
+  "lastLoginAt",
+];
+
 export const employeeFormSections = [
   {
     titleKey: "personalInfo",
     fields: [
-      "photo",
       "fullName",
       "idCardNumber",
       "gender",
@@ -73,12 +89,9 @@ export const newEmployeeFormSections = employeeFormSections.map((section) =>
 
 export const settingsFormSections = [
   {
-    titleKey: "accountInfo",
-    fields: ["avatar", "username"],
-  },
-  {
     titleKey: "personalInfo",
     fields: [
+      "username",
       "fullName",
       "idCardNumber",
       "gender",
@@ -120,10 +133,11 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
       { name: "employeeNo", required: true },
       { name: "fullName", required: true },
       { name: "idCardNumber", required: true },
-      { name: "gender", options: ["MALE", "FEMALE"] },
+      { name: "gender", required: true, options: ["MALE", "FEMALE"] },
       { name: "dateOfBirth", type: "date", required: true },
       {
         name: "marriedStatus",
+        required: true,
         options: ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"],
       },
       { name: "phone", required: true },
@@ -134,8 +148,8 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
       { name: "address" },
       { name: "departmentId" },
       { name: "managerId" },
-      { name: "jobTitle" },
-      { name: "hireDate", type: "date" },
+      { name: "jobTitle", required: true },
+      { name: "hireDate", type: "date", required: true },
       { name: "terminationDate", type: "date" },
       { name: "status", options: ["ACTIVE", "TERMINATED"] },
       { name: "emergencyContact.fullName", required: true },
@@ -150,7 +164,7 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   departments: {
     label: "Departments",
     fields: [
-      { name: "code", options: ["SYS", "HR"] },
+      { name: "code", required: true },
       { name: "name", required: true },
       { name: "managerId" },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
@@ -159,12 +173,11 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   accounts: {
     label: "Accounts",
     fields: [
-      { name: "employeeId" },
+      { name: "employeeId", required: true },
       { name: "username", required: true },
       { name: "password", type: "password", required: true },
+      { name: "confirmPassword", type: "password", required: true },
       { name: "status", options: ["ACTIVE", "LOCKED", "TERMINATED"] },
-      { name: "accountType", options: ["USER", "SYSTEM"] },
-      { name: "mustChangePassword", options: ["false", "true"] },
       { name: "avatar" },
       { name: "preferredLanguage", options: ["zh-CN", "en"] },
     ],
@@ -173,7 +186,7 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
     label: "Roles",
     fields: [
       { name: "name", required: true },
-      { name: "code", options: ["SYSTEM_ADMIN", "HR_MANAGER", "HR_OFFICE"] },
+      { name: "code", options: ["SYSTEM_ADMIN"] },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
       { name: "description" },
     ],

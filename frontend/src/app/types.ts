@@ -7,6 +7,7 @@ export type Session = {
   username: string;
   authorities: string[];
   language?: Language;
+  mustChangePassword?: boolean;
   securityQuestionsConfigured?: boolean;
 };
 

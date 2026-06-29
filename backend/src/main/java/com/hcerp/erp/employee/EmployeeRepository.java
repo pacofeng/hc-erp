@@ -33,6 +33,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     void deleteAccountsByEmployeeId(@Param("employeeId") UUID employeeId);
 
     @Modifying
+    @Query(value = "UPDATE accounts SET status = 'TERMINATED', updated_at = NOW() WHERE employee_id = :employeeId", nativeQuery = true)
+    void terminateAccountsByEmployeeId(@Param("employeeId") UUID employeeId);
+
+    @Modifying
     @Query(value = "UPDATE departments SET manager_id = NULL WHERE manager_id = :employeeId", nativeQuery = true)
     void clearDepartmentManagerReferences(@Param("employeeId") UUID employeeId);
 

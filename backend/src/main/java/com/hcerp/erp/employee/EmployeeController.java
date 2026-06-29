@@ -71,6 +71,9 @@ public class EmployeeController {
         Employee employee = employees.findById(id).orElseThrow(() -> new NotFoundException("Employee not found"));
         apply(employee, request);
         Employee saved = employees.save(employee);
+        if (saved.status == EmployeeStatus.TERMINATED) {
+            employees.terminateAccountsByEmployeeId(saved.id);
+        }
         EmergencyContact contact = saveEmergencyContact(saved.id, request.emergencyContact());
         return toResponse(saved, contact);
     }
@@ -157,7 +160,7 @@ public class EmployeeController {
             @NotBlank @Size(max = 18) String idCardNumber,
             @NotNull GenderType gender,
             @NotNull LocalDate dateOfBirth,
-            MarriedStatus marriedStatus,
+            @NotNull MarriedStatus marriedStatus,
             String addressProvince,
             String addressCity,
             String addressDistrict,
@@ -168,8 +171,8 @@ public class EmployeeController {
             String photo,
             UUID departmentId,
             UUID managerId,
-            String jobTitle,
-            LocalDate hireDate,
+            @NotBlank String jobTitle,
+            @NotNull LocalDate hireDate,
             LocalDate terminationDate,
             @NotNull EmployeeStatus status,
             @NotNull @Valid EmergencyContactRequest emergencyContact) {

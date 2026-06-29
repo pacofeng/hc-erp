@@ -1,14 +1,20 @@
 "use client";
 
 import React, {
+  Children,
   cloneElement,
   isValidElement,
+  useEffect,
   useId,
   useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
   type ElementType,
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -32,6 +38,50 @@ function stackSpacingClass(spacing: number) {
     4: "gap-8",
   };
   return classes[spacing] ?? "gap-4";
+}
+
+function useDropdownPosition(
+  open: boolean,
+  triggerRef: React.RefObject<HTMLElement | null>,
+) {
+  const [style, setStyle] = useState<CSSProperties>({});
+
+  useEffect(() => {
+    if (!open) return;
+
+    function updatePosition() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow;
+      const availableHeight = Math.max(
+        120,
+        Math.min(500, openAbove ? spaceAbove : spaceBelow),
+      );
+
+      setStyle({
+        position: "fixed",
+        left: rect.left,
+        width: rect.width,
+        maxHeight: availableHeight,
+        ...(openAbove
+          ? { bottom: window.innerHeight - rect.top + 4 }
+          : { top: rect.bottom + 4 }),
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, triggerRef]);
+
+  return style;
 }
 
 export function Box({
@@ -264,20 +314,14 @@ export function TextField({
     <label
       className={cn("grid gap-1.5", fullWidth !== false && "w-full", className)}
     >
-      {label && (
-        <span className="text-sm font-medium text-foreground">
-          {label}
-          {required ? " *" : ""}
-        </span>
-      )}
       <span className="relative block">
         <input
           id={id}
           className={cn(
-            "h-9 w-full rounded-md border border-border bg-white px-3 py-1 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-muted",
+            "peer h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:text-muted-foreground",
             endAdornment && "pr-11",
             error &&
-              "border-destructive focus:border-destructive focus:ring-destructive/15",
+              "border-destructive focus:border-destructive focus:ring-destructive",
           )}
           value={String(value ?? "")}
           type={type}
@@ -287,6 +331,17 @@ export function TextField({
           {...htmlInput}
           {...props}
         />
+        {label && (
+          <span
+            className={cn(
+              "pointer-events-none absolute -top-2 left-2 z-10 bg-white px-1 text-xs leading-4 text-muted-foreground transition-colors peer-focus:text-primary",
+              error && "text-destructive peer-focus:text-destructive",
+            )}
+          >
+            {label}
+            {required ? " *" : ""}
+          </span>
+        )}
         {endAdornment && (
           <span className="absolute inset-y-0 right-2 flex w-7 items-center justify-center">
             {endAdornment}
@@ -377,6 +432,8 @@ export function Select({
   children,
   className,
   disabled,
+  renderValue,
+  required,
 }: {
   label?: string;
   value?: string | string[];
@@ -386,39 +443,136 @@ export function Select({
   className?: string;
   disabled?: boolean;
   renderValue?: (value: unknown) => ReactNode;
+  required?: boolean;
 }) {
   const selected = Array.isArray(value) ? value : String(value ?? "");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuStyle = useDropdownPosition(open, triggerRef);
+  const options = Children.toArray(children)
+    .filter(
+      (
+        child,
+      ): child is ReactElement<{
+        value?: string;
+        disabled?: boolean;
+        children?: ReactNode;
+      }> => isValidElement(child),
+    )
+    .map((child) => ({
+      value: String(child.props.value ?? ""),
+      disabled: Boolean(child.props.disabled),
+      label: textFromNode(child.props.children),
+    }));
+  const selectedValues = Array.isArray(selected) ? selected : [selected];
+  const selectedLabels = options
+    .filter((option) => selectedValues.includes(option.value))
+    .map((option) => option.label);
+  const displayValue = renderValue
+    ? renderValue(selected)
+    : selectedLabels.join(", ");
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  function selectOption(optionValue: string) {
+    if (multiple) {
+      const current = Array.isArray(selected) ? selected : [];
+      const nextValue = current.includes(optionValue)
+        ? current.filter((item) => item !== optionValue)
+        : [...current, optionValue];
+      onChange?.({ target: { value: nextValue } });
+      return;
+    }
+    onChange?.({ target: { value: optionValue } });
+    setOpen(false);
+  }
 
   return (
-    <label className={cn("grid gap-1.5", className)}>
-      {label && <span className="text-sm font-medium">{label}</span>}
-      <span className="relative block">
-        <select
+    <div ref={rootRef} className={cn("relative grid gap-1.5", className)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-border bg-white px-3 py-2 text-left text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:text-muted-foreground"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+      >
+        <span className="min-w-0 flex-1 truncate">
+          {displayValue || "\u00a0"}
+        </span>
+        <ChevronDown
+          size={16}
           className={cn(
-            "min-h-9 w-full appearance-none rounded-md border border-border bg-white px-3 py-1 pr-11 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-muted",
-            multiple && "min-h-28 pr-3",
+            "shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
           )}
-          value={selected}
-          multiple={multiple}
-          disabled={disabled}
-          onChange={(event) => {
-            const nextValue = multiple
-              ? Array.from(event.currentTarget.selectedOptions).map(
-                  (option) => option.value,
-                )
-              : event.currentTarget.value;
-            onChange?.({ target: { value: nextValue } });
-          }}
+        />
+      </button>
+      {label && (
+        <span
+          className="pointer-events-none absolute -top-2 left-2 z-10 bg-white px-1 text-xs leading-4 text-muted-foreground"
         >
-          {children}
-        </select>
-        {!multiple && (
-          <span className="pointer-events-none absolute inset-y-0 right-2 flex w-7 items-center justify-center text-muted-foreground">
-            <ChevronDown size={16} />
-          </span>
-        )}
-      </span>
-    </label>
+          {label}
+          {required ? " *" : ""}
+        </span>
+      )}
+      {open && !disabled && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              style={menuStyle}
+              className="z-[100] overflow-y-auto rounded-md border border-border bg-white p-1 shadow-lg"
+              role="listbox"
+              aria-multiselectable={multiple || undefined}
+            >
+              {options.map((option) => {
+                const isSelected = selectedValues.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={option.disabled}
+                    className={cn(
+                      "flex w-full items-center rounded px-2 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
+                      isSelected && "bg-muted font-medium",
+                    )}
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => selectOption(option.value)}
+                  >
+                    {multiple && (
+                      <span
+                        className={cn(
+                          "mr-2 grid size-4 place-items-center rounded border border-border text-[10px]",
+                          isSelected && "border-primary bg-primary text-white",
+                        )}
+                      >
+                        {isSelected ? "✓" : ""}
+                      </span>
+                    )}
+                    {option.label || "\u00a0"}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   );
 }
 
@@ -426,10 +580,11 @@ export function Dialog({
   open,
   onClose,
   children,
+  maxWidth = "sm",
 }: {
   open?: boolean;
   onClose?: () => void;
-  maxWidth?: "xs" | "sm" | "md";
+  maxWidth?: "xs" | "sm" | "md" | "lg";
   fullWidth?: boolean;
   children?: ReactNode;
 }) {
@@ -442,7 +597,15 @@ export function Dialog({
           if (event.target === event.currentTarget) onClose?.();
         }}
       />
-      <div className="relative z-10 max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-md border border-border bg-white shadow-xl">
+      <div
+        className={cn(
+          "relative z-10 max-h-[90vh] w-full overflow-hidden rounded-md border border-border bg-white shadow-xl",
+          maxWidth === "xs" && "max-w-sm",
+          maxWidth === "sm" && "max-w-xl",
+          maxWidth === "md" && "max-w-3xl",
+          maxWidth === "lg" && "max-w-6xl",
+        )}
+      >
         {children}
       </div>
     </div>
@@ -577,7 +740,7 @@ export function Autocomplete<T>({
       })),
     [options, getOptionLabel],
   );
-  const text =
+  const valueText =
     value === null || value === undefined
       ? ""
       : typeof value === "string"
@@ -585,11 +748,26 @@ export function Autocomplete<T>({
         : getOptionLabel
           ? getOptionLabel(value as T)
           : String(value);
+  const [text, setText] = useState(valueText);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuStyle = useDropdownPosition(open, rootRef);
+  const filteredLabels = useMemo(() => {
+    const query = text.trim().toLocaleLowerCase();
+    if (!query) return labels;
+    return labels.filter((item) =>
+      item.label.toLocaleLowerCase().includes(query),
+    );
+  }, [labels, text]);
+
+  useEffect(() => {
+    setText(valueText);
+  }, [valueText]);
 
   const input = renderInput({
     value: text,
     disabled,
-    inputProps: { list: id },
+    inputProps: {},
     InputProps:
       text && !disabled
         ? {
@@ -600,6 +778,8 @@ export function Autocomplete<T>({
                 className="inline-flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={(event) => {
+                  setText("");
+                  setOpen(true);
                   onInputChange?.(event, "", "clear");
                   onChange?.(event, null);
                 }}
@@ -611,20 +791,55 @@ export function Autocomplete<T>({
         : undefined,
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
       const nextValue = event.target.value;
+      setText(nextValue);
+      setOpen(true);
       onInputChange?.(event, nextValue, nextValue ? "input" : "clear");
       const match = labels.find((item) => item.label === nextValue);
-      onChange?.(event, match ? match.option : nextValue);
+      if (match) {
+        onChange?.(event, match.option);
+      } else if (!nextValue) {
+        onChange?.(event, null);
+      }
     },
+    onFocus: () => setOpen(true),
+    onBlur: () => window.setTimeout(() => setOpen(false), 100),
   });
 
   return (
-    <div>
+    <div ref={rootRef} className="relative">
       {input}
-      <datalist id={id}>
-        {labels.map((item) => (
-          <option key={item.label} value={item.label} />
-        ))}
-      </datalist>
+      {open &&
+        !disabled &&
+        filteredLabels.length > 0 &&
+        typeof document !== "undefined"
+        ? createPortal(
+            <div
+              id={id}
+              style={menuStyle}
+              className="z-[100] overflow-y-auto rounded-md border border-border bg-white p-1 shadow-lg"
+              role="listbox"
+            >
+              {filteredLabels.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="block w-full rounded px-2 py-2 text-left text-sm hover:bg-muted"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    setText(item.label);
+                    setOpen(false);
+                    onInputChange?.(event, item.label, "input");
+                    onChange?.(event, item.option);
+                  }}
+                  role="option"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

@@ -14,7 +14,6 @@ import com.hcerp.erp.assignment.AccountRole;
 import com.hcerp.erp.assignment.AccountRoleRepository;
 import com.hcerp.erp.common.Enums.AccountStatus;
 import com.hcerp.erp.common.Enums.AccountType;
-import com.hcerp.erp.common.Enums.DepartmentCode;
 import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
 import com.hcerp.erp.common.Enums.RoleCode;
@@ -43,9 +42,11 @@ public class DataInitializer {
             employee.gender = GenderType.MALE;
             employee.dateOfBirth = LocalDate.of(1970, 1, 1);
             employee.phone = "13800000000";
+            employee.jobTitle = "System Administrator";
+            employee.hireDate = LocalDate.now();
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()
-                    .filter(d -> d.code == DepartmentCode.SYS)
+                    .filter(d -> "SYS".equals(d.code))
                     .findFirst()
                     .map(d -> d.id)
                     .orElse(null);
