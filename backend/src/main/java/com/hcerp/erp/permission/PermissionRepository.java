@@ -5,9 +5,8 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.hcerp.erp.common.Enums.PermissionCode;
-
 public interface PermissionRepository extends JpaRepository<Permission, UUID> {
-    Optional<Permission> findByCode(PermissionCode code);
-    boolean existsByCode(PermissionCode code);
+    Optional<Permission> findByCode(String code);
+    boolean existsByCode(String code);
+    boolean existsByCodeAndIdNot(String code, UUID id);
 }

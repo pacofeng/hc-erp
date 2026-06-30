@@ -4,10 +4,12 @@ CREATE TABLE departments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
+    chinese_name VARCHAR(100) NOT NULL,
     manager_id UUID,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
+    CONSTRAINT chk_department_code CHECK (code ~ '^[A-Z_]+$'),
     CONSTRAINT chk_department_status CHECK (status IN ('ACTIVE', 'INACTIVE'))
 );
 
@@ -98,12 +100,13 @@ CREATE TABLE accounts (
 CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
+    chinese_name VARCHAR(100) NOT NULL,
     code VARCHAR(50) UNIQUE NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     description TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    CONSTRAINT chk_role_code CHECK (code IN ('SYSTEM_ADMIN')),
+    CONSTRAINT chk_role_code CHECK (code ~ '^[A-Z_]+$'),
     CONSTRAINT chk_role_status CHECK (status IN ('ACTIVE', 'INACTIVE'))
 );
 
@@ -115,17 +118,8 @@ CREATE TABLE permissions (
     module_code VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    CONSTRAINT chk_permission_code CHECK (code IN (
-        'EMPLOYEE_VIEW',
-        'EMPLOYEE_CREATE',
-        'EMPLOYEE_EDIT',
-        'EMPLOYEE_DELETE',
-        'DEPARTMENT_VIEW',
-        'DEPARTMENT_CREATE',
-        'DEPARTMENT_EDIT',
-        'DEPARTMENT_DELETE'
-    )),
-    CONSTRAINT chk_module_code CHECK (module_code IN ('EMPLOYEE', 'DEPARTMENT'))
+    CONSTRAINT chk_permission_code CHECK (code ~ '^[A-Z_]+$'),
+    CONSTRAINT chk_module_code CHECK (module_code IN ('EMPLOYEE', 'ACCOUNT', 'DEPARTMENT'))
 );
 
 CREATE TABLE account_roles (
@@ -155,29 +149,31 @@ CREATE INDEX idx_account_roles_role_id ON account_roles(role_id);
 CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
 CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
 
-INSERT INTO departments (code, name, status)
+INSERT INTO departments (code, name, chinese_name, status)
 VALUES
-    ('SYS', 'System', 'ACTIVE'),
-    ('MGMT', 'Management', 'ACTIVE'),
-    ('FIN', 'Finance', 'ACTIVE'),
-    ('PROC', 'Procurement', 'ACTIVE'),
-    ('DS', 'Domestic Sales', 'ACTIVE'),
-    ('IS', 'International Sales', 'ACTIVE'),
-    ('ADMIN', 'Administration', 'ACTIVE'),
-    ('AFTER', 'After-Sales', 'ACTIVE'),
-    ('RES', 'Research', 'ACTIVE'),
-    ('MECH', 'Mechanical Processing', 'ACTIVE'),
-    ('FIT', 'Fitter Workshop', 'ACTIVE'),
-    ('QASM', 'Quilting Machine Assembly', 'ACTIVE'),
-    ('CASM', 'Cutting Machine Assembly', 'ACTIVE'),
-    ('PAINT', 'Painting', 'ACTIVE'),
-    ('ELEC', 'Electrical', 'ACTIVE'),
-    ('WH', 'Warehouse', 'ACTIVE'),
-    ('LOG', 'Logistics', 'ACTIVE');
+    ('SYS', 'System', '系统管理员', 'ACTIVE'),
+    ('MGMT', 'Management', '管理层', 'ACTIVE'),
+    ('FIN', 'Finance', '财务', 'ACTIVE'),
+    ('PROC', 'Procurement', '采购', 'ACTIVE'),
+    ('DS', 'Domestic Sales', '国内业务', 'ACTIVE'),
+    ('IS', 'International Sales', '外贸业务', 'ACTIVE'),
+    ('ADMIN', 'Administration', '行政', 'ACTIVE'),
+    ('AFTER', 'After-Sales', '售后', 'ACTIVE'),
+    ('RES', 'Research', '研发', 'ACTIVE'),
+    ('MECH', 'Mechanical Processing', '机械加工', 'ACTIVE'),
+    ('FIT', 'Fitter Workshop', '钳工房', 'ACTIVE'),
+    ('QASM', 'Quilting Machine Assembly', '一楼装配', 'ACTIVE'),
+    ('CASM', 'Cutting Machine Assembly', '二楼装配', 'ACTIVE'),
+    ('PAINT', 'Painting', '油漆', 'ACTIVE'),
+    ('ELEC', 'Electrical', '电工', 'ACTIVE'),
+    ('WH', 'Warehouse', '仓库', 'ACTIVE'),
+    ('LOG', 'Logistics', '后勤', 'ACTIVE');
 
-INSERT INTO roles (name, code, status, description)
+INSERT INTO roles (name, chinese_name, code, status, description)
 VALUES
-    ('System Administrator', 'SYSTEM_ADMIN', 'ACTIVE', 'Full system administration access');
+    ('System Administrator', '系统管理员', 'SYSTEM_ADMIN', 'ACTIVE', 'Full system administration access'),
+    ('Admin Manager', '管理员', 'ADMIN_MANAGER', 'ACTIVE', 'Manage employees and accounts'),
+    ('Admin Clerk', '行政文员', 'ADMIN_CLERK', 'ACTIVE', 'Read employees and accounts');
 
 INSERT INTO permissions (code, name, description, module_code)
 VALUES
@@ -185,6 +181,10 @@ VALUES
     ('EMPLOYEE_CREATE', 'Create employees', 'Create employee records', 'EMPLOYEE'),
     ('EMPLOYEE_EDIT', 'Edit employees', 'Update employee records', 'EMPLOYEE'),
     ('EMPLOYEE_DELETE', 'Delete employees', 'Delete employee records', 'EMPLOYEE'),
+    ('ACCOUNT_VIEW', 'View accounts', 'Read account records', 'ACCOUNT'),
+    ('ACCOUNT_CREATE', 'Create accounts', 'Create account records', 'ACCOUNT'),
+    ('ACCOUNT_EDIT', 'Edit accounts', 'Update account records', 'ACCOUNT'),
+    ('ACCOUNT_DELETE', 'Delete accounts', 'Delete account records', 'ACCOUNT'),
     ('DEPARTMENT_VIEW', 'View departments', 'Read department records', 'DEPARTMENT'),
     ('DEPARTMENT_CREATE', 'Create departments', 'Create department records', 'DEPARTMENT'),
     ('DEPARTMENT_EDIT', 'Edit departments', 'Update department records', 'DEPARTMENT'),
@@ -195,6 +195,32 @@ SELECT role.id, permission.id
 FROM roles role
 CROSS JOIN permissions permission
 WHERE role.code = 'SYSTEM_ADMIN';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT role.id, permission.id
+FROM roles role
+CROSS JOIN permissions permission
+WHERE role.code = 'ADMIN_MANAGER'
+  AND permission.code IN (
+      'EMPLOYEE_VIEW',
+      'EMPLOYEE_CREATE',
+      'EMPLOYEE_EDIT',
+      'EMPLOYEE_DELETE',
+      'ACCOUNT_VIEW',
+      'ACCOUNT_CREATE',
+      'ACCOUNT_EDIT',
+      'ACCOUNT_DELETE'
+  );
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT role.id, permission.id
+FROM roles role
+CROSS JOIN permissions permission
+WHERE role.code = 'ADMIN_CLERK'
+  AND permission.code IN (
+      'EMPLOYEE_VIEW',
+      'ACCOUNT_VIEW'
+  );
 
 WITH admin_department AS (
     SELECT id

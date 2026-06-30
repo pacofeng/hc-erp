@@ -4,7 +4,9 @@ export type Language = "en" | "zh-CN";
 
 export type Session = {
   token: string;
+  accountId?: string;
   username: string;
+  employeeId?: string;
   authorities: string[];
   language?: Language;
   mustChangePassword?: boolean;

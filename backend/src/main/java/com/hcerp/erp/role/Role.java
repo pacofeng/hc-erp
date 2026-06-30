@@ -3,7 +3,6 @@ package com.hcerp.erp.role;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-import com.hcerp.erp.common.Enums.RoleCode;
 import com.hcerp.erp.common.Enums.RoleStatus;
 
 import jakarta.persistence.Entity;
@@ -20,8 +19,8 @@ public class Role {
     @Id
     public UUID id;
     public String name;
-    @Enumerated(EnumType.STRING)
-    public RoleCode code;
+    public String chineseName;
+    public String code;
     @Enumerated(EnumType.STRING)
     public RoleStatus status = RoleStatus.ACTIVE;
     public String description;

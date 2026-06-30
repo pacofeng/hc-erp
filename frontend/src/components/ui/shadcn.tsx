@@ -424,6 +424,193 @@ export function Checkbox({ checked }: { checked?: boolean }) {
   return <input type="checkbox" checked={checked} readOnly className="mr-2" />;
 }
 
+export type ComboboxChipOption = {
+  value: string;
+  label: string;
+};
+
+export function ComboboxChips({
+  label,
+  value,
+  options,
+  onChange,
+  required,
+  disabled,
+  error,
+  helperText,
+  placeholder = "",
+}: {
+  label?: string;
+  value: string[];
+  options: ComboboxChipOption[];
+  onChange?: (value: string[]) => void;
+  required?: boolean;
+  disabled?: boolean;
+  error?: boolean;
+  helperText?: ReactNode;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuStyle = useDropdownPosition(open, rootRef);
+  const selectedOptions = options.filter((option) =>
+    value.includes(option.value),
+  );
+  const filteredOptions = options.filter((option) =>
+    option.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  );
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  function toggleOption(optionValue: string) {
+    const nextValue = value.includes(optionValue)
+      ? value.filter((item) => item !== optionValue)
+      : [...value, optionValue];
+    onChange?.(nextValue);
+    setQuery("");
+    inputRef.current?.focus();
+  }
+
+  function removeOption(optionValue: string) {
+    onChange?.(value.filter((item) => item !== optionValue));
+  }
+
+  return (
+    <div className="grid gap-1.5">
+      <span ref={rootRef} className="relative block">
+        <div
+          className={cn(
+            "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-md border border-border bg-white px-2 py-1.5 text-sm outline-none transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary",
+            disabled && "cursor-not-allowed text-muted-foreground",
+            error &&
+              "border-destructive focus-within:border-destructive focus-within:ring-destructive",
+          )}
+          onClick={() => {
+            if (disabled) return;
+            setOpen(true);
+            inputRef.current?.focus();
+          }}
+        >
+          {selectedOptions.map((option) => (
+            <span
+              key={option.value}
+              className="inline-flex min-h-6 items-center gap-1 rounded-full border border-border bg-muted px-2 text-xs font-medium"
+            >
+              {option.label}
+              {!disabled && (
+                <button
+                  type="button"
+                  className="rounded-full text-muted-foreground hover:text-foreground"
+                  aria-label={`Remove ${option.label}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeOption(option.value);
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            value={query}
+            disabled={disabled}
+            placeholder={selectedOptions.length ? "" : placeholder}
+            className="h-6 min-w-28 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+          />
+        </div>
+        {label && (
+          <span
+            className={cn(
+              "pointer-events-none absolute -top-2 left-2 z-10 bg-white px-1 text-xs leading-4 text-muted-foreground transition-colors",
+              error && "text-destructive",
+            )}
+          >
+            {label}
+            {required ? " *" : ""}
+          </span>
+        )}
+      </span>
+      {helperText && (
+        <span
+          className={cn(
+            "text-xs",
+            error ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {helperText}
+        </span>
+      )}
+      {open && !disabled && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              style={menuStyle}
+              className="z-[100] overflow-y-auto rounded-md border border-border bg-white p-1 shadow-lg"
+              role="listbox"
+              aria-multiselectable
+            >
+              {filteredOptions.map((option) => {
+                const isSelected = value.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center rounded px-2 py-2 text-left text-sm hover:bg-muted",
+                      isSelected && "bg-muted font-medium",
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => toggleOption(option.value)}
+                    role="option"
+                    aria-selected={isSelected}
+                  >
+                    <span
+                      className={cn(
+                        "mr-2 grid size-4 place-items-center rounded border border-border text-[10px]",
+                        isSelected && "border-primary bg-primary text-white",
+                      )}
+                    >
+                      {isSelected ? "✓" : ""}
+                    </span>
+                    {option.label || "\u00a0"}
+                  </button>
+                );
+              })}
+              {!filteredOptions.length && (
+                <div className="px-2 py-2 text-sm text-muted-foreground">
+                  No options
+                </div>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 export function Select({
   label,
   value,

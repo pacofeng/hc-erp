@@ -16,7 +16,6 @@ import com.hcerp.erp.common.Enums.AccountStatus;
 import com.hcerp.erp.common.Enums.AccountType;
 import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
-import com.hcerp.erp.common.Enums.RoleCode;
 import com.hcerp.erp.department.DepartmentRepository;
 import com.hcerp.erp.employee.Employee;
 import com.hcerp.erp.employee.EmployeeRepository;
@@ -61,7 +60,7 @@ public class DataInitializer {
             account.passwordChangedAt = OffsetDateTime.now();
             accounts.save(account);
 
-            roles.findByCode(RoleCode.SYSTEM_ADMIN).ifPresent(role -> {
+            roles.findByCode("SYSTEM_ADMIN").ifPresent(role -> {
                 AccountRole link = new AccountRole();
                 link.accountId = account.id;
                 link.roleId = role.id;

@@ -24,6 +24,7 @@ export const employeeTableColumns = [
 export const departmentTableColumns = [
   "code",
   "name",
+  "chineseName",
   "managerId",
   "employeeCount",
   "status",
@@ -36,6 +37,16 @@ export const accountTableColumns = [
   "preferredLanguage",
   "securityQuestionsConfigured",
   "lastLoginAt",
+];
+
+export const roleTableColumns = [
+  "code",
+  "name",
+  "chineseName",
+  "description",
+  "status",
+  "createdAt",
+  "updatedAt",
 ];
 
 export const employeeFormSections = [
@@ -166,6 +177,7 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
     fields: [
       { name: "code", required: true },
       { name: "name", required: true },
+      { name: "chineseName", required: true },
       { name: "managerId" },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
     ],
@@ -185,8 +197,9 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   roles: {
     label: "Roles",
     fields: [
+      { name: "code", required: true },
       { name: "name", required: true },
-      { name: "code", options: ["SYSTEM_ADMIN"] },
+      { name: "chineseName", required: true },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
       { name: "description" },
     ],
@@ -194,22 +207,10 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   permissions: {
     label: "Permissions",
     fields: [
-      {
-        name: "code",
-        options: [
-          "EMPLOYEE_VIEW",
-          "EMPLOYEE_CREATE",
-          "EMPLOYEE_EDIT",
-          "EMPLOYEE_DELETE",
-          "DEPARTMENT_VIEW",
-          "DEPARTMENT_CREATE",
-          "DEPARTMENT_EDIT",
-          "DEPARTMENT_DELETE",
-        ],
-      },
+      { name: "code", required: true },
       { name: "name", required: true },
       { name: "description" },
-      { name: "moduleCode", options: ["EMPLOYEE", "DEPARTMENT"] },
+      { name: "moduleCode", options: ["EMPLOYEE", "ACCOUNT", "DEPARTMENT"] },
     ],
   },
 };

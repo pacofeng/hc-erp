@@ -9,12 +9,7 @@ public final class Enums {
     public enum MarriedStatus { SINGLE, MARRIED, DIVORCED, WIDOWED }
     public enum AccountStatus { ACTIVE, LOCKED, TERMINATED }
     public enum AccountType { USER, SYSTEM }
-    public enum RoleCode { SYSTEM_ADMIN }
     public enum RoleStatus { ACTIVE, INACTIVE }
     public enum DepartmentStatus { ACTIVE, INACTIVE }
-    public enum PermissionCode {
-        EMPLOYEE_VIEW, EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE,
-        DEPARTMENT_VIEW, DEPARTMENT_CREATE, DEPARTMENT_EDIT, DEPARTMENT_DELETE
-    }
-    public enum ModuleCode { EMPLOYEE, DEPARTMENT }
+    public enum ModuleCode { EMPLOYEE, ACCOUNT, DEPARTMENT }
 }

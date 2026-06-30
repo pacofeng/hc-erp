@@ -1,18 +1,18 @@
 import {
-  Badge,
   Building2,
   CircleUserRound,
   KeyRound,
   LayoutDashboard,
   Settings,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { RESOURCE_STORAGE_KEY } from "./constants";
 import type { Session } from "./types";
 
 export const resources = [
   { key: "dashboard", icon: <LayoutDashboard size={16} /> },
-  { key: "employees", icon: <Badge size={16} /> },
+  { key: "employees", icon: <Users size={16} /> },
   { key: "departments", icon: <Building2 size={16} /> },
   { key: "accounts", icon: <CircleUserRound size={16} /> },
   { key: "roles", icon: <ShieldCheck size={16} /> },
@@ -28,7 +28,7 @@ export const resourceAuthorities: Record<ResourceKey, string[]> = {
   dashboard: [],
   employees: ["EMPLOYEE_VIEW", "ROLE_SYSTEM_ADMIN"],
   departments: ["DEPARTMENT_VIEW", "ROLE_SYSTEM_ADMIN"],
-  accounts: ["ROLE_SYSTEM_ADMIN"],
+  accounts: ["ACCOUNT_VIEW", "ROLE_SYSTEM_ADMIN"],
   roles: ["ROLE_SYSTEM_ADMIN"],
   permissions: ["ROLE_SYSTEM_ADMIN"],
   settings: [],
@@ -48,9 +48,9 @@ export const resourceActionAuthorities: Partial<
     delete: ["DEPARTMENT_DELETE", "ROLE_SYSTEM_ADMIN"],
   },
   accounts: {
-    create: ["ROLE_SYSTEM_ADMIN"],
-    edit: ["ROLE_SYSTEM_ADMIN"],
-    delete: ["ROLE_SYSTEM_ADMIN"],
+    create: ["ACCOUNT_CREATE", "ROLE_SYSTEM_ADMIN"],
+    edit: ["ACCOUNT_EDIT", "ROLE_SYSTEM_ADMIN"],
+    delete: ["ACCOUNT_DELETE", "ROLE_SYSTEM_ADMIN"],
   },
   roles: {
     create: ["ROLE_SYSTEM_ADMIN"],

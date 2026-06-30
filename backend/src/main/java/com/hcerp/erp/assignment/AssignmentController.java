@@ -17,7 +17,6 @@ import com.hcerp.erp.security.ErpUserDetails;
 
 @RestController
 @RequestMapping("/api/assignments")
-@PreAuthorize("hasRole('SYSTEM_ADMIN')")
 public class AssignmentController {
     private final AccountRoleRepository accountRoles;
     private final RolePermissionRepository rolePermissions;
@@ -28,11 +27,13 @@ public class AssignmentController {
     }
 
     @GetMapping("/accounts/{accountId}/roles")
+    @PreAuthorize("hasAuthority('ACCOUNT_VIEW') or hasRole('SYSTEM_ADMIN')")
     public List<AccountRole> accountRoles(@PathVariable UUID accountId) {
         return accountRoles.findByAccountId(accountId);
     }
 
     @PostMapping("/accounts/{accountId}/roles/{roleId}")
+    @PreAuthorize("hasAuthority('ACCOUNT_EDIT') or hasAuthority('ACCOUNT_CREATE') or hasRole('SYSTEM_ADMIN')")
     public AccountRole addAccountRole(@PathVariable UUID accountId, @PathVariable UUID roleId,
                                       @AuthenticationPrincipal ErpUserDetails user) {
         return accountRoles.findByAccountIdAndRoleId(accountId, roleId).orElseGet(() -> {
@@ -46,16 +47,19 @@ public class AssignmentController {
 
     @DeleteMapping("/accounts/{accountId}/roles/{roleId}")
     @Transactional
+    @PreAuthorize("hasAuthority('ACCOUNT_EDIT') or hasRole('SYSTEM_ADMIN')")
     public void deleteAccountRole(@PathVariable UUID accountId, @PathVariable UUID roleId) {
         accountRoles.deleteByAccountIdAndRoleId(accountId, roleId);
     }
 
     @GetMapping("/roles/{roleId}/permissions")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public List<RolePermission> rolePermissions(@PathVariable UUID roleId) {
         return rolePermissions.findByRoleId(roleId);
     }
 
     @PostMapping("/roles/{roleId}/permissions/{permissionId}")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public RolePermission addRolePermission(@PathVariable UUID roleId, @PathVariable UUID permissionId,
                                             @AuthenticationPrincipal ErpUserDetails user) {
         return rolePermissions.findByRoleIdAndPermissionId(roleId, permissionId).orElseGet(() -> {
@@ -69,6 +73,7 @@ public class AssignmentController {
 
     @DeleteMapping("/roles/{roleId}/permissions/{permissionId}")
     @Transactional
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public void deleteRolePermission(@PathVariable UUID roleId, @PathVariable UUID permissionId) {
         rolePermissions.deleteByRoleIdAndPermissionId(roleId, permissionId);
     }

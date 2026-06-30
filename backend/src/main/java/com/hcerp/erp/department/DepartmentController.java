@@ -53,7 +53,11 @@ public class DepartmentController {
     @PreAuthorize("hasAuthority('DEPARTMENT_EDIT') or hasRole('SYSTEM_ADMIN')")
     public Department update(@PathVariable UUID id, @Valid @RequestBody DepartmentRequest request) {
         Department department = departments.findById(id).orElseThrow(() -> new NotFoundException("Department not found"));
-        applyMutableFields(department, request);
+        String code = request.code().trim().toUpperCase();
+        if (departments.existsByCodeAndIdNot(code, id)) {
+            throw new IllegalArgumentException("Department code already exists");
+        }
+        apply(department, request);
         return departments.save(department);
     }
 
@@ -72,19 +76,17 @@ public class DepartmentController {
 
     private void apply(Department department, DepartmentRequest request) {
         department.code = request.code().trim().toUpperCase();
-        department.name = request.name();
-        applyMutableFields(department, request);
-    }
-
-    private void applyMutableFields(Department department, DepartmentRequest request) {
+        department.name = request.name().trim();
+        department.chineseName = request.chineseName().trim();
         department.managerId = request.managerId();
         department.status = request.status();
     }
 
     public record DepartmentRequest(
-            @NotBlank @Pattern(regexp = "^[A-Z0-9_-]+$", message = "Department code must be uppercase")
+            @NotBlank @Pattern(regexp = "^[A-Z_]+$", message = "Code can only contain uppercase letters and underscores")
             String code,
             @NotBlank String name,
+            @NotBlank String chineseName,
             UUID managerId,
             @NotNull DepartmentStatus status) {
     }

@@ -1,1 +1,1 @@
-export { Autocomplete } from "./shadcn";
+export { Autocomplete, ComboboxChips } from "./shadcn";

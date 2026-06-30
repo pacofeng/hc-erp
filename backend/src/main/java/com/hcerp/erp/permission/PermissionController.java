@@ -15,12 +15,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hcerp.erp.common.Enums.ModuleCode;
-import com.hcerp.erp.common.Enums.PermissionCode;
 import com.hcerp.erp.common.NotFoundException;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 @RestController
 @RequestMapping("/api/permissions")
@@ -39,6 +39,10 @@ public class PermissionController {
 
     @PostMapping
     public Permission create(@Valid @RequestBody PermissionRequest request) {
+        String code = request.code().trim().toUpperCase();
+        if (permissions.existsByCode(code)) {
+            throw new IllegalArgumentException("Permission code already exists");
+        }
         Permission permission = new Permission();
         apply(permission, request);
         return permissions.save(permission);
@@ -47,6 +51,10 @@ public class PermissionController {
     @PutMapping("/{id}")
     public Permission update(@PathVariable UUID id, @Valid @RequestBody PermissionRequest request) {
         Permission permission = permissions.findById(id).orElseThrow(() -> new NotFoundException("Permission not found"));
+        String code = request.code().trim().toUpperCase();
+        if (permissions.existsByCodeAndIdNot(code, id)) {
+            throw new IllegalArgumentException("Permission code already exists");
+        }
         apply(permission, request);
         return permissions.save(permission);
     }
@@ -61,13 +69,17 @@ public class PermissionController {
     }
 
     private void apply(Permission permission, PermissionRequest request) {
-        permission.code = request.code();
-        permission.name = request.name();
+        permission.code = request.code().trim().toUpperCase();
+        permission.name = request.name().trim();
         permission.description = request.description();
         permission.moduleCode = request.moduleCode();
     }
 
-    public record PermissionRequest(@NotNull PermissionCode code, @NotBlank String name, String description,
-                                    @NotNull ModuleCode moduleCode) {
+    public record PermissionRequest(
+            @NotBlank @Pattern(regexp = "^[A-Z_]+$", message = "Code can only contain uppercase letters and underscores")
+            String code,
+            @NotBlank String name,
+            String description,
+            @NotNull ModuleCode moduleCode) {
     }
 }

@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
 import com.hcerp.erp.common.Enums.MarriedStatus;
 import com.hcerp.erp.common.NotFoundException;
+import com.hcerp.erp.security.ErpUserDetails;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -81,7 +83,10 @@ public class EmployeeController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('EMPLOYEE_DELETE') or hasRole('SYSTEM_ADMIN')")
     @Transactional
-    public void delete(@PathVariable UUID id) {
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal ErpUserDetails user) {
+        if (id.equals(user.account().employeeId)) {
+            throw new IllegalArgumentException("You cannot delete your own employee record");
+        }
         if (!employees.existsById(id)) {
             throw new NotFoundException("Employee not found");
         }

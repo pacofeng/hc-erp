@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Autocomplete } from "@/components/ui/autocomplete";
+import { Autocomplete, ComboboxChips } from "@/components/ui/autocomplete";
 import { Button, IconButton } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +37,7 @@ import {
   employeeFormSections,
   employeeTableColumns,
   newEmployeeFormSections,
+  roleTableColumns,
   schemas,
   settingsFields,
 } from "../../app/schemaConfig";
@@ -125,6 +126,13 @@ export function validateFormFields(
     if (field.required && !isPasswordOptionalOnUpdate && isBlank) {
       errors[field.name] = "fieldRequired";
       return;
+    }
+    if (
+      isStrictCodeField(resource, field.name) &&
+      !isBlank &&
+      !isUppercaseLettersUnderscore(value)
+    ) {
+      errors[field.name] = "codeUppercaseUnderscoreOnly";
     }
     if (isPhoneField(field.name) && !isBlank && !isValidPhoneValue(value)) {
       errors[field.name] = "phoneInvalid";
@@ -247,6 +255,8 @@ export function ResourcePanel({
         ? departmentTableColumns
         : resource === "accounts"
           ? accountTableColumns
+          : resource === "roles"
+            ? roleTableColumns
       : [
           ...Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
             .filter(
@@ -274,12 +284,13 @@ export function ResourcePanel({
         references,
         language,
         t,
+        session,
         actions,
         setEditing,
         setPasswordEditing,
         setPendingDelete,
       ),
-    [columns, sort, resource, references, language, t, actions],
+    [columns, sort, resource, references, language, t, session, actions],
   );
   const pendingDeleteDepartmentEmployees = pendingDelete
     ? departmentEmployeesForDelete(resource, pendingDelete, references)
@@ -602,6 +613,12 @@ function EditDialog({
     ) {
       errors.code = "departmentCodeAlreadyExists";
     }
+    if (
+      (resource === "roles" && message === "Role code already exists") ||
+      (resource === "permissions" && message === "Permission code already exists")
+    ) {
+      errors.code = "codeAlreadyExists";
+    }
     return errors;
   }
 
@@ -701,13 +718,6 @@ function EditDialog({
             </Box>
           ) : (
             <>
-              {resource === "departments" && !row.id && (
-                <Box className="rounded-md bg-[#fff7e6] p-3">
-                  <Typography variant="body2" className="font-bold">
-                    {t.departmentCreateImmutableWarning}
-                  </Typography>
-                </Box>
-              )}
               {schema.fields.map((field) =>
                 renderField(
                   resource,
@@ -1103,6 +1113,14 @@ function AssignmentSection({
       .join(", ");
   }
 
+  const chipOptions = items.map((item) => ({
+    value: String(item.id ?? ""),
+    label:
+      type === "account"
+        ? assignmentRoleLabel(item, language)
+        : assignmentItemLabel(item),
+  }));
+
   return (
     <>
       {!inline && <Divider />}
@@ -1114,6 +1132,15 @@ function AssignmentSection({
         )}
         {loading ? (
           <Skeleton variant="rounded" height={40} className="mt-2" />
+        ) : type === "account" ? (
+          <ComboboxChips
+            label={selectLabel}
+            value={selectedIds}
+            options={chipOptions}
+            onChange={handleSelectionChange}
+            error={Boolean(error)}
+            helperText={error ? renderPanelError(error, t, language) : ""}
+          />
         ) : (
           <FormControl fullWidth size="small" className={inline ? "" : "mt-2"}>
             <Select
@@ -1224,6 +1251,19 @@ function isPhoneField(fieldName: string) {
 
 function isValidPhoneValue(value: unknown) {
   return /^\d{11}$/.test(String(value ?? ""));
+}
+
+function isStrictCodeField(resource: string, fieldName: string) {
+  return (
+    fieldName === "code" &&
+    (resource === "departments" ||
+      resource === "roles" ||
+      resource === "permissions")
+  );
+}
+
+function isUppercaseLettersUnderscore(value: unknown) {
+  return /^[A-Z_]+$/.test(String(value ?? ""));
 }
 
 function isStrongPassword(value: string) {
@@ -1340,7 +1380,7 @@ function renderField(
       <TextField
         key={field.name}
         fullWidth
-        label={formFieldLabel(resource, t, field.name)}
+        label={formFieldLabel(resource, t, field.name, language)}
         value={display}
         disabled
       />
@@ -1398,7 +1438,7 @@ function renderField(
         renderInput={(params) => (
           <TextField
             {...params}
-            label={formFieldLabel(resource, t, field.name)}
+            label={formFieldLabel(resource, t, field.name, language)}
             required={field.required}
             error={hasFieldError}
             helperText={helperText}
@@ -1410,7 +1450,7 @@ function renderField(
 
   if (resource === "employees" && field.name === "departmentId") {
     const value = getFieldValue(form, field.name);
-    const label = formFieldLabel(resource, t, field.name);
+    const label = formFieldLabel(resource, t, field.name, language);
     return (
       <FormControl key={field.name} fullWidth>
         <Select
@@ -1426,7 +1466,7 @@ function renderField(
           <MenuItem value="">-</MenuItem>
           {references.departments.map((department) => (
             <MenuItem key={String(department.id)} value={String(department.id)}>
-              {departmentName(department, t)}
+              {departmentName(department, t, language)}
             </MenuItem>
           ))}
         </Select>
@@ -1467,7 +1507,7 @@ function renderField(
         renderInput={(params) => (
           <TextField
             {...params}
-            label={formFieldLabel(resource, t, field.name)}
+            label={formFieldLabel(resource, t, field.name, language)}
             error={hasFieldError}
             helperText={helperText}
           />
@@ -1478,7 +1518,7 @@ function renderField(
 
   if (field.options) {
     const value = getFieldValue(form, field.name);
-    const label = formFieldLabel(resource, t, field.name);
+    const label = formFieldLabel(resource, t, field.name, language);
     return (
       <FormControl key={field.name} fullWidth>
         <Select
@@ -1508,10 +1548,6 @@ function renderField(
   const isIdCardNumber = field.name === "idCardNumber";
   const isLockedAccountUsername =
     resource === "accounts" && field.name === "username" && Boolean(currentRowId);
-  const isLockedDepartmentIdentity =
-    resource === "departments" &&
-    (field.name === "code" || field.name === "name") &&
-    Boolean(currentRowId);
   const showPhoneError = isPhone && value !== "" && !isValidPhoneValue(value);
   const htmlInputProps: React.InputHTMLAttributes<HTMLInputElement> | undefined =
     isPhone
@@ -1529,7 +1565,7 @@ function renderField(
     return (
       <PasswordTextField
         key={field.name}
-        label={formFieldLabel(resource, t, field.name)}
+        label={formFieldLabel(resource, t, field.name, language)}
         value={value}
         required={
           field.required &&
@@ -1554,9 +1590,9 @@ function renderField(
     <TextField
       key={field.name}
       fullWidth
-      label={formFieldLabel(resource, t, field.name)}
+      label={formFieldLabel(resource, t, field.name, language)}
       type={field.type ?? "text"}
-      disabled={isLockedAccountUsername || isLockedDepartmentIdentity}
+      disabled={isLockedAccountUsername}
       required={
         field.required &&
         !(resource === "accounts" && field.name === "password" && currentRowId)
@@ -1568,7 +1604,10 @@ function renderField(
           ? event.target.value.replace(/\D/g, "").slice(0, 11)
           : isIdCardNumber
             ? event.target.value.slice(0, 18)
-            : resource === "departments" && field.name === "code"
+            : (resource === "departments" ||
+                  resource === "roles" ||
+                  resource === "permissions") &&
+                field.name === "code"
               ? event.target.value.toUpperCase()
             : event.target.value;
         setForm((current) => setFieldValue(current, field.name, nextValue));
@@ -1650,18 +1689,17 @@ export function renderImageUploadField(
           )}
         </Box>
         <Stack
-          direction={portraitLayout ? "column" : { xs: "column", sm: "row" }}
+          direction="row"
           spacing={1}
           className={cn(
-            "min-w-0",
-            portraitLayout ? "w-full items-stretch" : "sm:items-center",
+            "min-w-0 items-center",
+            portraitLayout ? "w-full" : "flex-wrap",
           )}
         >
           <Button
             component="label"
             variant="outlined"
-            startIcon={<Camera size={16} />}
-            fullWidth={portraitLayout}
+            className={portraitLayout ? "flex-1" : undefined}
           >
             {hasImage ? t.changeImage : t.uploadImage}
             <input
@@ -1788,12 +1826,12 @@ function displayValue(
   if (resource === "departments" && column === "employeeCount") {
     return String(departmentEmployeeCount(value, references));
   }
-  if (resource === "departments" && column === "name") {
-    return departmentNameText(value, t);
+  if (resource === "departments" && column === "chineseName") {
+    return String(value ?? "");
   }
   if (resource === "employees" && column === "departmentId") {
     const department = references.departments.find((item) => item.id === value);
-    return department ? departmentName(department, t) : String(value ?? "");
+    return department ? departmentName(department, t, language) : String(value ?? "");
   }
   if (resource === "employees" && column === "managerId") {
     const manager = references.employees.find((item) => item.id === value);
@@ -1813,6 +1851,7 @@ function buildGridColumns(
   references: ReferenceData,
   language: Language,
   t: Translation,
+  session: Session,
   actions: { edit: boolean; delete: boolean },
   setEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
   setPasswordEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
@@ -1821,7 +1860,7 @@ function buildGridColumns(
   const dataColumns = [
     ...columns.map((column): GridColDef => {
       const sortRule = sort?.column === column ? sort : undefined;
-      const headerLabel = fieldLabel(t, column);
+      const headerLabel = resourceFieldLabel(resource, t, column, language);
 
       return {
         field: column,
@@ -1890,41 +1929,47 @@ function buildGridColumns(
       width: resource === "accounts" ? 136 : 104,
       align: "right",
       headerAlign: "right",
-      renderCell: (params: { row: AnyRow }) => (
-        <Stack
-          direction="row"
-          spacing={0.5}
-          className="min-h-full w-full items-center justify-end"
-        >
-          {actions.edit && (
-            <Tooltip title={t.edit}>
-              <IconButton size="small" onClick={() => setEditing(params.row)}>
-                <Pencil size={16} />
-              </IconButton>
-            </Tooltip>
-          )}
-          {resource === "accounts" && actions.edit && (
-            <Tooltip title={t.updatePassword}>
-              <IconButton
-                size="small"
-                onClick={() => setPasswordEditing(params.row)}
-              >
-                <KeyRound size={16} />
-              </IconButton>
-            </Tooltip>
-          )}
-          {actions.delete && (
-            <Tooltip title={t.delete}>
-              <IconButton
-                size="small"
-                onClick={() => setPendingDelete(params.row)}
-              >
-                <Trash2 size={16} />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Stack>
-      ),
+      renderCell: (params: { row: AnyRow }) => {
+        const isSelfDelete = isCurrentUserRow(resource, params.row, session);
+        return (
+          <Stack
+            direction="row"
+            spacing={0.5}
+            className="min-h-full w-full items-center justify-end"
+          >
+            {actions.edit && (
+              <Tooltip title={t.edit}>
+                <IconButton size="small" onClick={() => setEditing(params.row)}>
+                  <Pencil size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {resource === "accounts" && actions.edit && (
+              <Tooltip title={t.updatePassword}>
+                <IconButton
+                  size="small"
+                  onClick={() => setPasswordEditing(params.row)}
+                >
+                  <KeyRound size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {actions.delete && (
+              <Tooltip title={isSelfDelete ? t.cannotDeleteSelf : t.delete}>
+                <IconButton
+                  size="small"
+                  disabled={isSelfDelete}
+                  onClick={() => {
+                    if (!isSelfDelete) setPendingDelete(params.row);
+                  }}
+                >
+                  <Trash2 size={16} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+        );
+      },
     },
   ];
 }
@@ -2037,6 +2082,16 @@ function employeeAccountForAction(
   return references.accounts.find((account) => account.employeeId === row.id);
 }
 
+function isCurrentUserRow(resource: string, row: AnyRow, session: Session) {
+  if (resource === "accounts") {
+    return Boolean(session.accountId && row.id === session.accountId);
+  }
+  if (resource === "employees") {
+    return Boolean(session.employeeId && row.id === session.employeeId);
+  }
+  return false;
+}
+
 function departmentEmployeesForDelete(
   resource: string,
   row: AnyRow,
@@ -2067,6 +2122,13 @@ function assignmentItemLabel(item: AnyRow) {
   );
 }
 
+function assignmentRoleLabel(item: AnyRow, language: Language) {
+  const englishName = String(item.name ?? "").trim();
+  const chineseName = String(item.chineseName ?? "").trim();
+  if (language === "zh-CN" && chineseName) return chineseName;
+  return englishName || chineseName || String(item.id ?? "");
+}
+
 function availableAccountEmployees(
   references: ReferenceData,
   currentEmployeeId: unknown,
@@ -2086,18 +2148,26 @@ function availableAccountEmployees(
   );
 }
 
-function departmentName(department: AnyRow, t: Translation) {
+function departmentName(department: AnyRow, t: Translation, language: Language) {
   return [
-    departmentNameText(department.name, t),
+    departmentDisplayName(department, language, t),
     department.code ? `(${department.code})` : "",
   ]
     .filter(Boolean)
     .join(" ");
 }
 
-function departmentNameText(value: unknown, t: Translation) {
-  const name = String(value ?? "").trim();
+function departmentDisplayName(
+  department: AnyRow,
+  language: Language,
+  t: Translation,
+) {
+  const name = String(department.name ?? "").trim();
   if (!name) return "";
+  if (language === "zh-CN") {
+    const chineseName = String(department.chineseName ?? "").trim();
+    if (chineseName) return chineseName;
+  }
   return t.departmentNames[name as keyof typeof t.departmentNames] ?? name;
 }
 
@@ -2169,9 +2239,26 @@ function singularResourceLabel(resource: string, t: Translation) {
   return label.endsWith("s") ? label.slice(0, -1) : label;
 }
 
-function formFieldLabel(resource: string, t: Translation, key: string) {
+function formFieldLabel(
+  resource: string,
+  t: Translation,
+  key: string,
+  language?: Language,
+) {
   if (resource === "employees" && key.startsWith("emergencyContact.")) {
     return fieldLabel(t, key.replace("emergencyContact.", ""));
   }
+  if ((resource === "departments" || resource === "roles") && key === "name") {
+    return language === "zh-CN" ? "英文名称" : "English Name";
+  }
   return fieldLabel(t, key);
+}
+
+function resourceFieldLabel(
+  resource: string,
+  t: Translation,
+  key: string,
+  language?: Language,
+) {
+  return formFieldLabel(resource, t, key, language);
 }

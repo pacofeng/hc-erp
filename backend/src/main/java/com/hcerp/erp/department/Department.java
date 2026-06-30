@@ -20,6 +20,7 @@ public class Department {
     public UUID id;
     public String code;
     public String name;
+    public String chineseName;
     public UUID managerId;
     @Enumerated(EnumType.STRING)
     public DepartmentStatus status = DepartmentStatus.ACTIVE;
