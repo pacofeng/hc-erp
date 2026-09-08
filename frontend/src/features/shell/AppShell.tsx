@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, IconButton } from "@/components/ui/button";
-import { FormControl } from "@/components/ui/form";
-import { AppBar, Box, Chip, Paper, Stack, Toolbar } from "@/components/ui/layout";
-import { MenuItem, Select } from "@/components/ui/select";
-import { Tooltip } from "@/components/ui/tooltip";
-import { LogOut } from "lucide-react";
+import {
+  AppBar,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  Paper,
+  Stack,
+  Toolbar,
+  Tooltip,
+} from "@mui/material";
+import LogoutIcon from "@mui/icons-material/Logout";
 import { LOGO_SRC, RESOURCE_STORAGE_KEY } from "../../app/constants";
 import type { Translation } from "../../app/i18n";
 import {
@@ -26,13 +32,11 @@ export function Shell({
   session,
   language,
   t,
-  onLanguageChange,
   onLogout,
 }: {
   session: Session;
   language: Language;
   t: Translation;
-  onLanguageChange: (language: Language) => Promise<void>;
   onLogout: () => void;
 }) {
   const [resource, setResource] = useState(() => getInitialResource());
@@ -84,42 +88,47 @@ export function Shell({
   }, [session]);
 
   return (
-    <Box className="min-h-screen bg-background">
-      <AppBar position="sticky" color="inherit" elevation={0}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar
+        position="sticky"
+        color="inherit"
+        elevation={0}
+        sx={{ borderBottom: "1px solid #dde3dc" }}
+      >
         <Toolbar>
-          <Box className="flex-1">
+          <Box sx={{ flex: 1 }}>
             <Box
               component="img"
               src={LOGO_SRC}
               alt="Hengchang Machinery"
-              className="block h-auto w-[190px] max-w-full sm:w-[260px]"
+              sx={{
+                display: "block",
+                width: { xs: 190, sm: 260 },
+                maxWidth: "100%",
+                height: "auto",
+              }}
             />
           </Box>
-          <Stack direction="row" spacing={1} className="items-center">
-            <FormControl size="small" className="min-w-[150px]">
-              <Select
-                value={language}
-                onChange={(event) =>
-                  void onLanguageChange(event.target.value as Language)
-                }
-              >
-                <MenuItem value="zh-CN">简体中文</MenuItem>
-                <MenuItem value="en">English</MenuItem>
-              </Select>
-            </FormControl>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Chip label={session.username} size="small" />
             <Tooltip title={t.signOut}>
               <IconButton onClick={onLogout}>
-                <LogOut size={16} />
+                <LogoutIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Toolbar>
       </AppBar>
       <Box
-        className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]"
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "220px 1fr" },
+          gap: 2,
+          p: 2,
+          flex: 1,
+        }}
       >
-        <Paper className="self-start p-2">
+        <Paper sx={{ p: 1, alignSelf: "start" }}>
           {visibleResources.map((item) => (
             <Button
               key={item.key}
@@ -127,7 +136,7 @@ export function Shell({
               startIcon={item.icon}
               variant={activeResource === item.key ? "contained" : "text"}
               onClick={() => selectResource(item.key)}
-              className="mb-1 justify-start"
+              sx={{ justifyContent: "flex-start", mb: 0.5 }}
             >
               {t.resources[item.key]}
             </Button>

@@ -41,7 +41,7 @@ public class DataInitializer {
             employee.gender = GenderType.MALE;
             employee.dateOfBirth = LocalDate.of(1970, 1, 1);
             employee.phone = "13800000000";
-            employee.jobTitle = "System Administrator";
+            employee.jobTitle = "系统管理员";
             employee.hireDate = LocalDate.now();
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()

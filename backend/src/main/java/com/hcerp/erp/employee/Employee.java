@@ -9,8 +9,7 @@ import com.hcerp.erp.common.Enums.GenderType;
 import com.hcerp.erp.common.Enums.MarriedStatus;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -24,10 +23,10 @@ public class Employee {
     public String employeeNo;
     public String fullName;
     public String idCardNumber;
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = GenderConverter.class)
     public GenderType gender;
     public LocalDate dateOfBirth;
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = MarriedStatusConverter.class)
     public MarriedStatus marriedStatus = MarriedStatus.SINGLE;
     public String addressProvince;
     public String addressCity;
@@ -40,7 +39,7 @@ public class Employee {
     public String jobTitle;
     public LocalDate hireDate;
     public LocalDate terminationDate;
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = EmployeeStatusConverter.class)
     public EmployeeStatus status = EmployeeStatus.ACTIVE;
     public OffsetDateTime createdAt;
     public OffsetDateTime updatedAt;

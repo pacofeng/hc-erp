@@ -1,14 +1,15 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Button,
+  CssBaseline,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Typography } from "@/components/ui/typography";
+  Typography,
+  createTheme,
+  ThemeProvider,
+} from "@mui/material";
 import {
   AUTH_EXPIRED_EVENT,
   INACTIVITY_TIMEOUT_MS,
@@ -20,74 +21,79 @@ import {
   SECURITY_QUESTIONS_PATH,
   USER_ACTIVITY_EVENT,
 } from "./constants";
-import { api } from "./apiClient";
 import { Login, SecurityQuestionSetup } from "../features/auth/AuthPages";
 import { Shell } from "../features/shell/AppShell";
-import { getPreferredLanguage, localizedErrorMessage, messages } from "./i18n";
+import { getPreferredLanguage, messages } from "./i18n";
 import {
   getResourceFromPath,
   getStoredResource,
   navigate,
   resourcePath,
 } from "./resources";
-import { ToastProvider, useToast } from "./toast";
-import type { Language, Session } from "./types";
-
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function readStoredSession(): Session | null {
-  if (!isBrowser()) return null;
-  const raw = window.localStorage.getItem("hcerp-session");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as Session;
-  } catch {
-    window.localStorage.removeItem("hcerp-session");
-    return null;
-  }
-}
+import type { Session } from "./types";
 
 export function App() {
-  return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
-  );
-}
-
-function AppContent() {
-  const [storageLoaded, setStorageLoaded] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null>(() => {
+    const raw = localStorage.getItem("hcerp-session");
+    return raw ? JSON.parse(raw) : null;
+  });
   const [routeVersion, setRouteVersion] = useState(0);
-  const [language, setLanguage] = useState<Language>("zh-CN");
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(
     INACTIVITY_WARNING_SECONDS,
   );
   const inactivityWarningVisibleRef = useRef(false);
-  const t = messages[language];
-  const { showToast } = useToast();
+  const language = getPreferredLanguage();
+  const t = messages;
 
-  useEffect(() => {
-    if (!isBrowser()) return;
-    const storedSession = readStoredSession();
-    setSession(storedSession);
-    setLanguage(getPreferredLanguage(storedSession));
-    setStorageLoaded(true);
-  }, []);
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: "light",
+          primary: { main: "#285c52" },
+          secondary: { main: "#7c3f58" },
+          background: { default: "#f7f8f5" },
+        },
+        shape: { borderRadius: 6 },
+        typography: { fontFamily: "Inter, Arial, sans-serif" },
+        components: {
+          MuiButton: {
+            styleOverrides: {
+              root: { textTransform: "none", fontWeight: 600 },
+            },
+          },
+          MuiTableCell: {
+            styleOverrides: {
+              head: { fontWeight: 700, backgroundColor: "#eef2ed" },
+            },
+          },
+          MuiTextField: {
+            defaultProps: {
+              size: "small",
+            },
+          },
+          MuiFormControl: {
+            defaultProps: {
+              size: "small",
+            },
+          },
+          MuiSelect: {
+            defaultProps: {
+              size: "small",
+            },
+          },
+        },
+      }),
+    [],
+  );
 
   function saveSession(next: Session | null) {
     setSession(next);
-    const nextLanguage = getPreferredLanguage(next);
-    setLanguage(nextLanguage);
-    if (!isBrowser()) return;
-    window.localStorage.setItem("hcerp-language", nextLanguage);
     if (next) {
-      window.localStorage.setItem("hcerp-session", JSON.stringify(next));
-      window.sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
-      window.localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
+      localStorage.setItem("hcerp-session", JSON.stringify(next));
+      sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
+      localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
       navigate(
         next.securityQuestionsConfigured
           ? resourcePath("dashboard")
@@ -95,58 +101,20 @@ function AppContent() {
         true,
       );
     } else {
-      window.localStorage.removeItem("hcerp-session");
+      localStorage.removeItem("hcerp-session");
       navigate(LOGIN_PATH, true);
     }
   }
 
   function updateSession(next: Session) {
     setSession(next);
-    if (!isBrowser()) return;
-    window.localStorage.setItem("hcerp-session", JSON.stringify(next));
+    localStorage.setItem("hcerp-session", JSON.stringify(next));
     if (next.securityQuestionsConfigured) {
       navigate(resourcePath("dashboard"), true);
     }
   }
 
-  async function saveLanguage(nextLanguage: Language) {
-    setLanguage(nextLanguage);
-    if (isBrowser()) {
-      window.localStorage.setItem("hcerp-language", nextLanguage);
-    }
-    if (!session) return;
-    const updatedSession = { ...session, language: nextLanguage };
-    setSession(updatedSession);
-    if (isBrowser()) {
-      window.localStorage.setItem(
-        "hcerp-session",
-        JSON.stringify(updatedSession),
-      );
-    }
-    try {
-      await api("/auth/language", updatedSession, {
-        method: "PUT",
-        body: JSON.stringify({ language: nextLanguage }),
-      });
-      showToast({
-        message: messages[nextLanguage].languageSaved,
-        variant: "success",
-      });
-    } catch (err) {
-      showToast({
-        message: localizedErrorMessage(
-          err,
-          messages[nextLanguage].saveFailed,
-          nextLanguage,
-        ),
-        variant: "error",
-      });
-    }
-  }
-
   useEffect(() => {
-    if (!isBrowser()) return;
-
     function handlePopState() {
       setRouteVersion((version) => version + 1);
     }
@@ -160,8 +128,6 @@ function AppContent() {
   }, [showInactivityWarning]);
 
   useEffect(() => {
-    if (!isBrowser()) return;
-
     function handleAuthExpired() {
       setShowInactivityWarning(false);
       setInactivityCountdown(INACTIVITY_WARNING_SECONDS);
@@ -175,9 +141,7 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    if (!isBrowser()) return;
-
-    if (!storageLoaded || !session) {
+    if (!session) {
       setShowInactivityWarning(false);
       setInactivityCountdown(INACTIVITY_WARNING_SECONDS);
       return;
@@ -253,15 +217,13 @@ function AppContent() {
         window.removeEventListener(eventName, resetInactivityTimers);
       });
     };
-  }, [session, storageLoaded]);
+  }, [session]);
 
   useEffect(() => {
-    if (!isBrowser() || !storageLoaded) return;
-
     if (!session) {
       const requestedResource = getResourceFromPath();
       if (requestedResource)
-        window.sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
+        sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
       if (window.location.pathname !== LOGIN_PATH) navigate(LOGIN_PATH, true);
       return;
     }
@@ -281,19 +243,16 @@ function AppContent() {
     if (window.location.pathname === LOGIN_PATH || !getResourceFromPath()) {
       navigate(resourcePath(getStoredResource()), true);
     }
-  }, [session, routeVersion, storageLoaded]);
-
-  if (!storageLoaded) return null;
+  }, [session, routeVersion]);
 
   return (
-    <>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       {session ? (
         !session.securityQuestionsConfigured ? (
           <SecurityQuestionSetup
             session={session}
-            language={language}
             t={t}
-            onLanguageChange={saveLanguage}
             onSaved={() =>
               updateSession({ ...session, securityQuestionsConfigured: true })
             }
@@ -305,7 +264,6 @@ function AppContent() {
               session={session}
               language={language}
               t={t}
-              onLanguageChange={saveLanguage}
               onLogout={() => saveSession(null)}
             />
             <Dialog open={showInactivityWarning} maxWidth="xs" fullWidth>
@@ -314,7 +272,7 @@ function AppContent() {
                 <Typography variant="body2">
                   {t.inactivityWarningMessage}
                 </Typography>
-                <Typography variant="h4" className="mt-4">
+                <Typography variant="h4" sx={{ mt: 2, fontWeight: 700 }}>
                   {inactivityCountdown}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -337,12 +295,10 @@ function AppContent() {
         )
       ) : (
         <Login
-          language={language}
           t={t}
-          onLanguageChange={saveLanguage}
           onLogin={saveSession}
         />
       )}
-    </>
+    </ThemeProvider>
   );
 }

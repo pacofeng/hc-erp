@@ -33,7 +33,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     void deleteAccountsByEmployeeId(@Param("employeeId") UUID employeeId);
 
     @Modifying
-    @Query(value = "UPDATE accounts SET status = 'TERMINATED', updated_at = NOW() WHERE employee_id = :employeeId", nativeQuery = true)
+    @Query(value = "UPDATE accounts SET status = '停用', updated_at = NOW() WHERE employee_id = :employeeId", nativeQuery = true)
     void terminateAccountsByEmployeeId(@Param("employeeId") UUID employeeId);
 
     @Modifying

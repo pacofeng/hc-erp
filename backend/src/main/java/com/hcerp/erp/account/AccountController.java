@@ -125,13 +125,7 @@ public class AccountController {
         }
         account.status = request.status();
         account.avatar = request.avatar();
-        String preferredLanguage = request.preferredLanguage() == null || request.preferredLanguage().isBlank()
-                ? "zh-CN"
-                : request.preferredLanguage();
-        if (!preferredLanguage.equals("en") && !preferredLanguage.equals("zh-CN")) {
-            throw new IllegalArgumentException("Unsupported language");
-        }
-        account.preferredLanguage = preferredLanguage;
+        account.preferredLanguage = "zh-CN";
     }
 
     public record AccountRequest(
@@ -141,8 +135,7 @@ public class AccountController {
             @NotNull AccountStatus status,
             @Size(max = 30000000, message = "Avatar must be 20MB or smaller")
             @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Avatar must be an uploaded image file")
-            String avatar,
-            String preferredLanguage) {
+            String avatar) {
     }
 
     public record AccountView(UUID id, UUID employeeId, String username, AccountStatus status, AccountType accountType,

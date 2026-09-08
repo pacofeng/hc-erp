@@ -86,7 +86,7 @@ public class AuthController {
     @PutMapping("/language")
     public Map<String, Object> updateLanguage(@AuthenticationPrincipal ErpUserDetails user,
                                               @Valid @RequestBody LanguageRequest request) {
-        if (!request.language().equals("en") && !request.language().equals("zh-CN")) {
+        if (!request.language().equals("zh-CN")) {
             throw new IllegalArgumentException("Unsupported language");
         }
         var account = user.account();

@@ -19,7 +19,6 @@ public class Role {
     @Id
     public UUID id;
     public String name;
-    public String chineseName;
     public String code;
     @Enumerated(EnumType.STRING)
     public RoleStatus status = RoleStatus.ACTIVE;

@@ -77,7 +77,6 @@ public class DepartmentController {
     private void apply(Department department, DepartmentRequest request) {
         department.code = request.code().trim().toUpperCase();
         department.name = request.name().trim();
-        department.chineseName = request.chineseName().trim();
         department.managerId = request.managerId();
         department.status = request.status();
     }
@@ -86,7 +85,6 @@ public class DepartmentController {
             @NotBlank @Pattern(regexp = "^[A-Z_]+$", message = "Code can only contain uppercase letters and underscores")
             String code,
             @NotBlank String name,
-            @NotBlank String chineseName,
             UUID managerId,
             @NotNull DepartmentStatus status) {
     }

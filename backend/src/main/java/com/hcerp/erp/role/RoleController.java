@@ -70,7 +70,6 @@ public class RoleController {
 
     private void apply(Role role, RoleRequest request) {
         role.name = request.name().trim();
-        role.chineseName = request.chineseName().trim();
         role.code = request.code().trim().toUpperCase();
         role.status = request.status();
         role.description = request.description();
@@ -78,7 +77,6 @@ public class RoleController {
 
     public record RoleRequest(
             @NotBlank String name,
-            @NotBlank String chineseName,
             @NotBlank @Pattern(regexp = "^[A-Z_]+$", message = "Code can only contain uppercase letters and underscores")
             String code,
             @NotNull RoleStatus status,

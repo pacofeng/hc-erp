@@ -1,159 +1,89 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
 import {
+  Box,
+  Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { FormControl, FormHelperText } from "@/components/ui/form";
-import { TextField } from "@/components/ui/input";
-import { Box, Paper, Stack } from "@/components/ui/layout";
-import { MenuItem, Select } from "@/components/ui/select";
-import { Typography } from "@/components/ui/typography";
-import { Save, Shield } from "lucide-react";
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import SaveIcon from "@mui/icons-material/Save";
+import SecurityIcon from "@mui/icons-material/Security";
 import { api } from "../../app/apiClient";
-import { useToast } from "../../app/toast";
-import {
-  apiError,
-  messages,
-  messageError,
-  renderLocalizedError,
-  type LocalizedErrorState,
-  type Translation,
-} from "../../app/i18n";
-import type { Language, Session } from "../../app/types";
+import type { Translation } from "../../app/i18n";
+import type { Session } from "../../app/types";
 import { PasswordTextField, PublicPageShell } from "../../components/AppChrome";
 
-type FieldErrorMap = Partial<Record<string, LocalizedErrorState>>;
-
-function requiredError() {
-  return messageError("fieldRequired");
-}
-
-function fieldErrorText(
-  fieldErrors: FieldErrorMap,
-  fieldName: string,
-  t: Translation,
-  language: Language,
-) {
-  const error = fieldErrors[fieldName];
-  return error ? renderLocalizedError(error, t, language) : undefined;
-}
-
-function clearFieldError(fieldErrors: FieldErrorMap, fieldName: string) {
-  const nextFieldErrors = { ...fieldErrors };
-  delete nextFieldErrors[fieldName];
-  return nextFieldErrors;
-}
-
 export function Login({
-  language,
   t,
-  onLanguageChange,
   onLogin,
 }: {
-  language: Language;
   t: Translation;
-  onLanguageChange: (language: Language) => Promise<void>;
   onLogin: (session: Session) => void;
 }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
-  const [error, setError] = useState<LocalizedErrorState | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+  const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [pendingPasswordResetSession, setPendingPasswordResetSession] =
-    useState<Session | null>(null);
-  const { showToast } = useToast();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!username.trim()) nextFieldErrors.username = requiredError();
-    if (!password.trim()) nextFieldErrors.password = requiredError();
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
+    setError("");
     try {
       const result = await api<Session>("/auth/login", undefined, {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
-      const accountLanguage =
-        result.language === "en" || result.language === "zh-CN"
-          ? result.language
-          : language;
-      const sessionWithAccountLanguage = { ...result, language: accountLanguage };
-      if (accountLanguage !== language) {
-        void onLanguageChange(accountLanguage);
-      }
-      if (result.mustChangePassword) {
-        setPendingPasswordResetSession(sessionWithAccountLanguage);
-        return;
-      }
-      onLogin(sessionWithAccountLanguage);
+      onLogin(result);
     } catch (err) {
-      const nextError = apiError(err, "loginFailed");
-      setFieldErrors({ password: nextError });
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.loginFailed);
     }
   }
 
   return (
-    <PublicPageShell
-      language={language}
-      t={t}
-      onLanguageChange={onLanguageChange}
-    >
-      <Paper component="form" onSubmit={submit} noValidate className="w-full p-6">
+    <PublicPageShell>
+      <Paper component="form" onSubmit={submit} sx={{ width: "100%", p: 3 }}>
         <Stack spacing={2.5}>
           <TextField
             label={t.username}
             value={username}
-            onChange={(event) => {
-              setUsername(event.target.value);
-              setFieldErrors((current) => clearFieldError(current, "username"));
-            }}
+            onChange={(event) => setUsername(event.target.value)}
             required
-            error={Boolean(fieldErrors.username)}
-            helperText={fieldErrorText(fieldErrors, "username", t, language)}
           />
           <PasswordTextField
             label={t.password}
             value={password}
-            onChange={(value) => {
-              setPassword(value);
-              setFieldErrors((current) => clearFieldError(current, "password"));
-            }}
+            onChange={setPassword}
             autoComplete="current-password"
             required
-            error={Boolean(fieldErrors.password)}
-            helperText={fieldErrorText(fieldErrors, "password", t, language)}
           />
-          <Box className="-mt-2">
+          <Box sx={{ mt: -1 }}>
             <Button
-              type="button"
               variant="text"
               size="small"
               onClick={() => setForgotOpen(true)}
-              className="px-0"
+              sx={{ px: 0 }}
             >
               {t.forgotPassword}
             </Button>
           </Box>
           {error && (
             <Typography color="error" variant="body2">
-              {renderLocalizedError(error, t, language)}
+              {error}
             </Typography>
           )}
           <Button
             type="submit"
             variant="contained"
-            startIcon={<Shield size={16} />}
+            startIcon={<SecurityIcon />}
           >
             {t.signIn}
           </Button>
@@ -161,153 +91,22 @@ export function Login({
         <ForgotPasswordDialog
           open={forgotOpen}
           initialUsername={username}
-          language={language}
           t={t}
           onClose={() => setForgotOpen(false)}
         />
-        {pendingPasswordResetSession && (
-          <MustChangePasswordDialog
-            session={pendingPasswordResetSession}
-            language={pendingPasswordResetSession.language ?? language}
-            t={messages[pendingPasswordResetSession.language ?? language]}
-            onSaved={(nextSession) =>
-              onLogin({
-                ...nextSession,
-                language: nextSession.language ?? pendingPasswordResetSession.language,
-              })
-            }
-            onCancel={() => setPendingPasswordResetSession(null)}
-          />
-        )}
       </Paper>
     </PublicPageShell>
   );
 }
 
-function MustChangePasswordDialog({
-  session,
-  language,
-  t,
-  onSaved,
-  onCancel,
-}: {
-  session: Session;
-  language: Language;
-  t: Translation;
-  onSaved: (session: Session) => void;
-  onCancel: () => void;
-}) {
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
-  const [error, setError] = useState<LocalizedErrorState | null>(null);
-  const { showToast } = useToast();
-
-  async function save() {
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!newPassword.trim()) nextFieldErrors.newPassword = requiredError();
-    if (!confirmPassword.trim()) nextFieldErrors.confirmPassword = requiredError();
-    if (!isStrongPassword(newPassword)) {
-      nextFieldErrors.newPassword = messageError("passwordStrengthHint");
-    }
-    if (newPassword !== confirmPassword) {
-      nextFieldErrors.confirmPassword = messageError("passwordsDoNotMatch");
-    }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
-
-    try {
-      const nextSession = await api<Session>("/auth/change-password", session, {
-        method: "PUT",
-        body: JSON.stringify({ newPassword, confirmPassword }),
-      });
-      showToast({ message: t.passwordResetSuccess, variant: "success" });
-      onSaved({ ...nextSession, mustChangePassword: false });
-    } catch (err) {
-      const nextError = apiError(err, "saveFailed");
-      setError(nextError);
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
-    }
-  }
-
-  return (
-    <Dialog open maxWidth="sm" fullWidth>
-      <DialogTitle>{t.mustChangePasswordTitle}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} className="pt-2">
-          <Typography variant="body2">{t.mustChangePasswordMessage}</Typography>
-          <PasswordTextField
-            label={t.newPassword}
-            value={newPassword}
-            onChange={(value) => {
-              setNewPassword(value);
-              setFieldErrors((current) => clearFieldError(current, "newPassword"));
-            }}
-            autoComplete="new-password"
-            required
-            error={Boolean(fieldErrors.newPassword)}
-            helperText={fieldErrorText(
-              fieldErrors,
-              "newPassword",
-              t,
-              language,
-            )}
-          />
-          <PasswordTextField
-            label={t.confirmPassword}
-            value={confirmPassword}
-            onChange={(value) => {
-              setConfirmPassword(value);
-              setFieldErrors((current) =>
-                clearFieldError(current, "confirmPassword"),
-              );
-            }}
-            autoComplete="new-password"
-            required
-            error={Boolean(fieldErrors.confirmPassword)}
-            helperText={fieldErrorText(
-              fieldErrors,
-              "confirmPassword",
-              t,
-              language,
-            )}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {t.passwordStrengthHint}
-          </Typography>
-          {error && (
-            <Typography color="error" variant="body2">
-              {renderLocalizedError(error, t, language)}
-            </Typography>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancel}>{t.cancel}</Button>
-        <Button variant="contained" onClick={save}>
-          {t.resetPassword}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 export function SecurityQuestionSetup({
   session,
-  language,
   t,
-  onLanguageChange,
   onSaved,
   onLogout,
 }: {
   session: Session;
-  language: Language;
   t: Translation;
-  onLanguageChange: (language: Language) => Promise<void>;
   onSaved: () => void;
   onLogout: () => void;
 }) {
@@ -317,9 +116,7 @@ export function SecurityQuestionSetup({
     { question: "", answer: "" },
     { question: "", answer: "" },
   ]);
-  const [error, setError] = useState<LocalizedErrorState | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
-  const { showToast } = useToast();
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void api<{ questions: string[] }>("/auth/security-questions/options")
@@ -332,38 +129,19 @@ export function SecurityQuestionSetup({
           })),
         );
       })
-      .catch((err) => {
-        const nextError = apiError(err, "loadFailed");
-        setError(nextError);
-        showToast({
-          message: renderLocalizedError(nextError, t, language),
-          variant: "error",
-        });
-      });
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : t.loadFailed),
+      );
   }, [t.loadFailed]);
 
   async function save() {
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    answers.forEach((answer, index) => {
-      if (!answer.question) nextFieldErrors[`question-${index}`] = requiredError();
-      if (!answer.answer.trim()) nextFieldErrors[`answer-${index}`] = requiredError();
-    });
+    setError("");
     const selectedQuestions = answers.map((answer) => answer.question);
     if (
-      selectedQuestions.filter(Boolean).length >= 3 &&
+      answers.some((answer) => !answer.question || !answer.answer.trim()) ||
       new Set(selectedQuestions).size < 3
     ) {
-      answers.forEach((answer, index) => {
-        if (answer.question) {
-          nextFieldErrors[`question-${index}`] = messageError(
-            "securityQuestionSetupMessage",
-          );
-        }
-      });
-    }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) {
+      setError(t.securityQuestionSetupMessage);
       return;
     }
     try {
@@ -371,29 +149,18 @@ export function SecurityQuestionSetup({
         method: "PUT",
         body: JSON.stringify({ answers }),
       });
-      showToast({ message: t.securityQuestionsSaved, variant: "success" });
       onSaved();
     } catch (err) {
-      const nextError = apiError(err, "saveFailed");
-      setError(nextError);
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.saveFailed);
     }
   }
 
   return (
-    <PublicPageShell
-      language={language}
-      t={t}
-      onLanguageChange={onLanguageChange}
-      maxWidthClassName="max-w-[720px]"
-    >
-      <Paper className="w-full p-6">
+    <PublicPageShell maxWidth={720}>
+      <Paper sx={{ width: "100%", p: 3 }}>
         <Stack spacing={2.5}>
           <Box>
-            <Typography variant="h5">
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {t.securityQuestionSetupTitle}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -403,21 +170,18 @@ export function SecurityQuestionSetup({
           {answers.map((answer, index) => (
             <Stack key={index} spacing={1.5}>
               <FormControl fullWidth>
+                <InputLabel>{t.securityQuestion}</InputLabel>
                 <Select
                   label={t.securityQuestion}
-                  required
                   value={answer.question}
                   onChange={(event) =>
-                    (setFieldErrors((current) =>
-                      clearFieldError(current, `question-${index}`),
-                    ),
                     setAnswers((current) =>
                       current.map((item, itemIndex) =>
                         itemIndex === index
-                          ? { ...item, question: String(event.target.value) }
+                          ? { ...item, question: event.target.value }
                           : item,
                       ),
-                    ))
+                    )
                   }
                 >
                   {questions.map((question) => (
@@ -433,44 +197,35 @@ export function SecurityQuestionSetup({
                     </MenuItem>
                   ))}
                 </Select>
-                <FormHelperText error>
-                  {fieldErrorText(fieldErrors, `question-${index}`, t, language)}
-                </FormHelperText>
               </FormControl>
               <TextField
                 fullWidth
                 label={t.securityAnswer}
                 value={answer.answer}
-                onChange={(event) => {
-                  setFieldErrors((current) =>
-                    clearFieldError(current, `answer-${index}`),
-                  );
+                onChange={(event) =>
                   setAnswers((current) =>
                     current.map((item, itemIndex) =>
                       itemIndex === index
                         ? { ...item, answer: event.target.value }
                         : item,
                     ),
-                  );
-                }}
-                error={Boolean(fieldErrors[`answer-${index}`])}
-                helperText={fieldErrorText(
-                  fieldErrors,
-                  `answer-${index}`,
-                  t,
-                  language,
-                )}
+                  )
+                }
               />
             </Stack>
           ))}
           {error && (
             <Typography color="error" variant="body2">
-              {renderLocalizedError(error, t, language)}
+              {error}
             </Typography>
           )}
-          <Stack direction="row" spacing={1} className="justify-end">
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: "flex-end" }}
+          >
             <Button onClick={onLogout}>{t.signOut}</Button>
-            <Button variant="contained" onClick={save} startIcon={<Save size={16} />}>
+            <Button variant="contained" onClick={save} startIcon={<SaveIcon />}>
               {t.save}
             </Button>
           </Stack>
@@ -483,13 +238,11 @@ export function SecurityQuestionSetup({
 function ForgotPasswordDialog({
   open,
   initialUsername,
-  language,
   t,
   onClose,
 }: {
   open: boolean;
   initialUsername: string;
-  language: Language;
   t: Translation;
   onClose: () => void;
 }) {
@@ -501,9 +254,7 @@ function ForgotPasswordDialog({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState("");
-  const [error, setError] = useState<LocalizedErrorState | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
-  const { showToast } = useToast();
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -515,16 +266,11 @@ function ForgotPasswordDialog({
     setNewPassword("");
     setConfirmPassword("");
     setSuccess("");
-    setError(null);
-    setFieldErrors({});
+    setError("");
   }, [open, initialUsername]);
 
   async function loadQuestions() {
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!username.trim()) nextFieldErrors.username = requiredError();
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
+    setError("");
     setSuccess("");
     try {
       const result = await api<{ questionIndex: number; question: string }>(
@@ -539,22 +285,13 @@ function ForgotPasswordDialog({
       setQuestionIndex(result.questionIndex);
       setAnswer("");
     } catch (err) {
-      const nextError = apiError(err, "loadFailed");
-      setFieldErrors({ username: nextError });
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.loadFailed);
     }
   }
 
   async function verifyAnswers() {
-    setError(null);
+    setError("");
     if (questionIndex === null) return;
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!answer.trim()) nextFieldErrors.answer = requiredError();
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
     try {
       const result = await api<{ resetToken: string }>(
         "/auth/forgot-password/verify",
@@ -566,28 +303,20 @@ function ForgotPasswordDialog({
       );
       setResetToken(result.resetToken);
     } catch (err) {
-      const nextError = apiError(err, "saveFailed");
-      setFieldErrors({ answer: nextError });
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.saveFailed);
     }
   }
 
   async function resetPassword() {
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!newPassword.trim()) nextFieldErrors.newPassword = requiredError();
-    if (!confirmPassword.trim()) nextFieldErrors.confirmPassword = requiredError();
+    setError("");
     if (!isStrongPassword(newPassword)) {
-      nextFieldErrors.newPassword = messageError("passwordStrengthHint");
+      setError(t.passwordStrengthHint);
+      return;
     }
     if (newPassword !== confirmPassword) {
-      nextFieldErrors.confirmPassword = messageError("passwordsDoNotMatch");
+      setError(t.passwordsDoNotMatch);
+      return;
     }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
     try {
       await api("/auth/forgot-password/reset", undefined, {
         method: "POST",
@@ -599,7 +328,6 @@ function ForgotPasswordDialog({
         }),
       });
       setSuccess(t.passwordResetSuccess);
-      showToast({ message: t.passwordResetSuccess, variant: "success" });
       setResetToken("");
       setQuestion("");
       setQuestionIndex(null);
@@ -607,12 +335,7 @@ function ForgotPasswordDialog({
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      const nextError = apiError(err, "saveFailed");
-      setFieldErrors({ confirmPassword: nextError });
-      showToast({
-        message: renderLocalizedError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.saveFailed);
     }
   }
 
@@ -620,30 +343,19 @@ function ForgotPasswordDialog({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{t.forgotPasswordTitle}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} className="pt-2">
+        <Stack spacing={2} sx={{ pt: 1 }}>
           <TextField
             label={t.username}
             value={username}
-            onChange={(event) => {
-              setUsername(event.target.value);
-              setFieldErrors((current) => clearFieldError(current, "username"));
-            }}
+            onChange={(event) => setUsername(event.target.value)}
             disabled={Boolean(resetToken)}
             required
-            error={Boolean(fieldErrors.username)}
-            helperText={fieldErrorText(fieldErrors, "username", t, language)}
           />
           {question && !resetToken && (
             <TextField
               label={securityQuestionLabel(t, question)}
               value={answer}
-              onChange={(event) => {
-                setAnswer(event.target.value);
-                setFieldErrors((current) => clearFieldError(current, "answer"));
-              }}
-              required
-              error={Boolean(fieldErrors.answer)}
-              helperText={fieldErrorText(fieldErrors, "answer", t, language)}
+              onChange={(event) => setAnswer(event.target.value)}
             />
           )}
           {resetToken && (
@@ -651,40 +363,14 @@ function ForgotPasswordDialog({
               <PasswordTextField
                 label={t.newPassword}
                 value={newPassword}
-                onChange={(value) => {
-                  setNewPassword(value);
-                  setFieldErrors((current) =>
-                    clearFieldError(current, "newPassword"),
-                  );
-                }}
+                onChange={setNewPassword}
                 autoComplete="new-password"
-                required
-                error={Boolean(fieldErrors.newPassword)}
-                helperText={fieldErrorText(
-                  fieldErrors,
-                  "newPassword",
-                  t,
-                  language,
-                )}
               />
               <PasswordTextField
                 label={t.confirmPassword}
                 value={confirmPassword}
-                onChange={(value) => {
-                  setConfirmPassword(value);
-                  setFieldErrors((current) =>
-                    clearFieldError(current, "confirmPassword"),
-                  );
-                }}
+                onChange={setConfirmPassword}
                 autoComplete="new-password"
-                required
-                error={Boolean(fieldErrors.confirmPassword)}
-                helperText={fieldErrorText(
-                  fieldErrors,
-                  "confirmPassword",
-                  t,
-                  language,
-                )}
               />
               <Typography variant="caption" color="text.secondary">
                 {t.passwordStrengthHint}
@@ -693,7 +379,7 @@ function ForgotPasswordDialog({
           )}
           {error && (
             <Typography color="error" variant="body2">
-              {renderLocalizedError(error, t, language)}
+              {error}
             </Typography>
           )}
           {success && (

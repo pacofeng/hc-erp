@@ -1,26 +1,41 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Autocomplete, ComboboxChips } from "@/components/ui/autocomplete";
-import { Button, IconButton } from "@/components/ui/button";
+import dayjs from "dayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import {
+  Autocomplete,
+  Box,
+  Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { FormControl, FormHelperText } from "@/components/ui/form";
-import { TextField } from "@/components/ui/input";
-import { Box, Divider, Paper, Stack } from "@/components/ui/layout";
-import { MenuItem, Select } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TableSortLabel } from "@/components/ui/table-sort-label";
-import { Tooltip } from "@/components/ui/tooltip";
-import { Typography } from "@/components/ui/typography";
+  Divider,
+  FormControl,
+  IconButton,
+  InputLabel,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Skeleton,
+  Stack,
+  TableSortLabel,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
-} from "@/components/ui/data-grid";
-import { Camera, KeyRound, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+} from "@mui/x-data-grid";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SaveIcon from "@mui/icons-material/Save";
 import {
   IMAGE_UPLOAD_ACCEPT,
   IMAGE_UPLOAD_TYPES,
@@ -29,25 +44,15 @@ import {
   pageSizeOptions,
 } from "../../app/constants";
 import { api } from "../../app/apiClient";
-import { useToast } from "../../app/toast";
 import { canUseResourceAction } from "../../app/resources";
 import {
-  accountTableColumns,
-  departmentTableColumns,
   employeeFormSections,
   employeeTableColumns,
   newEmployeeFormSections,
-  roleTableColumns,
   schemas,
   settingsFields,
 } from "../../app/schemaConfig";
-import {
-  apiError,
-  renderLocalizedError,
-  type LocalizedErrorState,
-  type MessageKey,
-  type Translation,
-} from "../../app/i18n";
+import { messages, type Translation } from "../../app/i18n";
 import type {
   AnyRow,
   AssignmentState,
@@ -60,99 +65,6 @@ import type {
 } from "../../app/types";
 import { PasswordTextField } from "../../components/AppChrome";
 import { chinaAddressDivisions } from "../../chinaAddressData";
-import { cn } from "../../lib/utils";
-
-export type FieldErrorState = {
-  kind: "field";
-  fieldName: string;
-  messageKey: "phoneInvalid" | "imageInvalid";
-  resource: string;
-};
-
-export type PanelErrorState = LocalizedErrorState | FieldErrorState;
-export type FieldErrorMap = Partial<Record<string, MessageKey>>;
-
-function fieldError(
-  fieldName: string,
-  messageKey: FieldErrorState["messageKey"],
-  resource: string,
-): FieldErrorState {
-  return { kind: "field", fieldName, messageKey, resource };
-}
-
-export function renderPanelError(
-  error: PanelErrorState,
-  t: Translation,
-  language: Language,
-) {
-  if (error.kind === "field") {
-    return `${formFieldLabel(error.resource, t, error.fieldName)}: ${
-      t[error.messageKey]
-    }`;
-  }
-  return renderLocalizedError(error, t, language);
-}
-
-function fieldErrorText(
-  fieldErrors: FieldErrorMap,
-  fieldName: string,
-  t: Translation,
-) {
-  const messageKey = fieldErrors[fieldName];
-  return messageKey ? String(t[messageKey]) : undefined;
-}
-
-function clearFieldError(fieldErrors: FieldErrorMap, fieldName: string) {
-  const nextFieldErrors = { ...fieldErrors };
-  delete nextFieldErrors[fieldName];
-  return nextFieldErrors;
-}
-
-export function validateFormFields(
-  fields: Field[],
-  form: AnyRow,
-  resource: string,
-  currentRowId?: string,
-) {
-  const errors: FieldErrorMap = {};
-  fields.forEach((field) => {
-    const value = getFieldValue(form, field.name);
-    const isBlank =
-      value === null || value === undefined || String(value).trim() === "";
-    const isPasswordOptionalOnUpdate =
-      resource === "accounts" &&
-      (field.name === "password" || field.name === "confirmPassword") &&
-      currentRowId;
-    if (field.required && !isPasswordOptionalOnUpdate && isBlank) {
-      errors[field.name] = "fieldRequired";
-      return;
-    }
-    if (
-      isStrictCodeField(resource, field.name) &&
-      !isBlank &&
-      !isUppercaseLettersUnderscore(value)
-    ) {
-      errors[field.name] = "codeUppercaseUnderscoreOnly";
-    }
-    if (isPhoneField(field.name) && !isBlank && !isValidPhoneValue(value)) {
-      errors[field.name] = "phoneInvalid";
-    }
-    if (field.name === "idCardNumber" && !isBlank && !isValidIdCardNumber(value)) {
-      errors[field.name] = "idCardInvalid";
-    }
-    if (field.name === "dateOfBirth" && !isBlank && isFutureDateValue(value)) {
-      errors[field.name] = "dateOfBirthFuture";
-    }
-    if (
-      isImageUploadField(field.name) &&
-      !isBlank &&
-      !isValidImageDataUrl(value)
-    ) {
-      errors[field.name] = "imageInvalid";
-    }
-  });
-  return errors;
-}
 
 export function ResourcePanel({
   resource,
@@ -173,7 +85,6 @@ export function ResourcePanel({
     accounts: [],
   });
   const [editing, setEditing] = useState<AnyRow | null>(null);
-  const [passwordEditing, setPasswordEditing] = useState<AnyRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AnyRow | null>(null);
   const [sort, setSort] = useState<SortState>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -181,8 +92,7 @@ export function ResourcePanel({
     pageSize: 20,
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<PanelErrorState | null>(null);
-  const { showToast } = useToast();
+  const [error, setError] = useState("");
   const actions = useMemo(
     () => ({
       create: canUseResourceAction(resource, "create", session),
@@ -193,7 +103,7 @@ export function ResourcePanel({
   );
 
   async function load() {
-    setError(null);
+    setError("");
     setLoading(true);
     try {
       const nextRows = await api<AnyRow[]>(`/${resource}`, session);
@@ -215,12 +125,7 @@ export function ResourcePanel({
         setReferences({ departments: nextRows, employees, accounts: [] });
       }
     } catch (err) {
-      const nextError = apiError(err, "loadFailed");
-      setError(nextError);
-      showToast({
-        message: renderPanelError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -232,47 +137,29 @@ export function ResourcePanel({
 
   async function remove(row: AnyRow) {
     if (!row.id) return;
-    setError(null);
+    setError("");
     try {
       await api<void>(`/${resource}/${row.id}`, session, { method: "DELETE" });
       setPendingDelete(null);
-      showToast({ message: t.deleted, variant: "success" });
       await load();
     } catch (err) {
-      const nextError = apiError(err, "deleteFailed");
-      setError(nextError);
-      showToast({
-        message: renderPanelError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.deleteFailed);
     }
   }
 
   const columns =
     resource === "employees"
       ? employeeTableColumns
-      : resource === "departments"
-        ? departmentTableColumns
-        : resource === "accounts"
-          ? accountTableColumns
-          : resource === "roles"
-            ? roleTableColumns
-      : [
-          ...Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
-            .filter(
-              (column) =>
-                column !== "id" &&
-                column !== "passwordHash" &&
-                !(
-                  resource === "accounts" &&
-                  (column === "accountType" || column === "mustChangePassword")
-                ),
-            )
-            .slice(0, 9),
-        ];
+      : Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
+          .filter(
+            (column) =>
+              !["id", "passwordHash", "preferredLanguage"].includes(column) &&
+              !(resource === "accounts" && column === "avatar"),
+          )
+          .slice(0, 9);
   const sortedRows = useMemo(
-    () => sortRows(rows, sort, resource, references, language, t),
-    [rows, sort, resource, references, language, t],
+    () => sortRows(rows, sort, resource, references, language),
+    [rows, sort, resource, references, language],
   );
   const dataGridColumns = useMemo(
     () =>
@@ -284,19 +171,12 @@ export function ResourcePanel({
         references,
         language,
         t,
-        session,
         actions,
         setEditing,
-        setPasswordEditing,
         setPendingDelete,
       ),
-    [columns, sort, resource, references, language, t, session, actions],
+    [columns, sort, resource, references, language, t, actions],
   );
-  const pendingDeleteDepartmentEmployees = pendingDelete
-    ? departmentEmployeesForDelete(resource, pendingDelete, references)
-    : [];
-  const departmentDeleteBlocked =
-    resource === "departments" && pendingDeleteDepartmentEmployees.length > 0;
 
   useEffect(() => {
     setSort(null);
@@ -319,14 +199,14 @@ export function ResourcePanel({
   }
 
   return (
-    <Paper className="overflow-hidden">
+    <Paper sx={{ overflow: "hidden" }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1}
-        className="p-4 sm:items-center"
+        sx={{ p: 2, alignItems: { sm: "center" } }}
       >
-        <Box className="flex-1">
-          <Typography variant="h6">
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
             {t.resources[resource as keyof typeof t.resources]}
           </Typography>
           {loading ? (
@@ -340,14 +220,14 @@ export function ResourcePanel({
         <Tooltip title={t.refresh}>
           <span>
             <IconButton onClick={load} disabled={loading}>
-              <RefreshCw size={16} />
+              <RefreshIcon />
             </IconButton>
           </span>
         </Tooltip>
         {actions.create && (
           <Button
             variant="contained"
-            startIcon={<Plus size={16} />}
+            startIcon={<AddIcon />}
             onClick={() => setEditing(defaultRow(schema.fields, resource))}
           >
             {t.new}
@@ -356,11 +236,11 @@ export function ResourcePanel({
       </Stack>
       <Divider />
       {error && (
-        <Typography color="error" className="px-4 py-2">
-          {renderPanelError(error, t, language)}
+        <Typography color="error" sx={{ px: 2, py: 1 }}>
+          {error}
         </Typography>
       )}
-      <Box className="h-[calc(100vh-238px)] min-h-[420px]">
+      <Box sx={{ height: "calc(100vh - 238px)", minHeight: 420 }}>
         <DataGrid
           rows={sortedRows}
           columns={dataGridColumns}
@@ -370,6 +250,13 @@ export function ResourcePanel({
           onPaginationModelChange={updatePaginationModel}
           pageSizeOptions={pageSizeOptions}
           getRowId={(row: AnyRow) => String(row.id)}
+          sx={{
+            border: 0,
+            "& .MuiDataGrid-columnHeaderTitle": { fontWeight: 700 },
+            "& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus": {
+              outline: "none",
+            },
+          }}
         />
       </Box>
       {editing && (
@@ -378,25 +265,11 @@ export function ResourcePanel({
           schema={schema}
           row={editing}
           session={session}
-          language={language}
           t={t}
           references={references}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            void load();
-          }}
-        />
-      )}
-      {passwordEditing && (
-        <UpdateAccountPasswordDialog
-          row={passwordEditing}
-          session={session}
-          language={language}
-          t={t}
-          onClose={() => setPasswordEditing(null)}
-          onSaved={() => {
-            setPasswordEditing(null);
             void load();
           }}
         />
@@ -411,37 +284,20 @@ export function ResourcePanel({
           <DialogTitle>{t.confirmDeleteTitle}</DialogTitle>
           <DialogContent>
             <Typography variant="body2">{t.confirmDeleteMessage}</Typography>
-            {employeeAccountForAction(resource, pendingDelete, references) && (
-              <Box className="mt-4 rounded-md bg-[#fdecee] p-3">
-                <Typography variant="body2" className="font-bold">
+            {employeeAccountForDelete(resource, pendingDelete, references) && (
+              <Box sx={{ mt: 2, p: 1.5, bgcolor: "#fdecee", borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
                   {t.employeeAccountDeleteWarning}
                 </Typography>
                 <Typography variant="body2">
                   {t.associatedAccount}:{" "}
                   {accountSummary(
-                    employeeAccountForAction(
+                    employeeAccountForDelete(
                       resource,
                       pendingDelete,
                       references,
                     ),
                   )}
-                </Typography>
-              </Box>
-            )}
-            {departmentDeleteBlocked && (
-              <Box className="mt-4 rounded-md bg-[#fdecee] p-3">
-                <Typography variant="body2" className="font-bold">
-                  {t.departmentDeleteBlocked}
-                </Typography>
-                <Typography variant="body2" className="mt-1">
-                  {t.assignedEmployees}:{" "}
-                  {pendingDeleteDepartmentEmployees
-                    .slice(0, 5)
-                    .map(employeeName)
-                    .join(", ")}
-                  {pendingDeleteDepartmentEmployees.length > 5
-                    ? ` +${pendingDeleteDepartmentEmployees.length - 5}`
-                    : ""}
                 </Typography>
               </Box>
             )}
@@ -451,8 +307,7 @@ export function ResourcePanel({
             <Button
               color="error"
               variant="contained"
-              startIcon={<Trash2 size={16} />}
-              disabled={departmentDeleteBlocked}
+              startIcon={<DeleteIcon />}
               onClick={() => remove(pendingDelete)}
             >
               {t.delete}
@@ -469,7 +324,6 @@ function EditDialog({
   schema,
   row,
   session,
-  language,
   t,
   references,
   onClose,
@@ -479,272 +333,106 @@ function EditDialog({
   schema: { label: string; fields: Field[] };
   row: AnyRow;
   session: Session;
-  language: Language;
   t: Translation;
   references: ReferenceData;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState<AnyRow>(row);
-  const [error, setError] = useState<PanelErrorState | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+  const [error, setError] = useState("");
   const [assignmentState, setAssignmentState] =
     useState<AssignmentState | null>(null);
-  const [pendingTerminateSave, setPendingTerminateSave] = useState(false);
-  const { showToast } = useToast();
   const assignmentType =
-    resource === "accounts"
+    row.id && resource === "accounts"
       ? "account"
       : row.id && resource === "roles"
         ? "role"
         : undefined;
-  const photoField = schema.fields.find((field) => field.name === "photo");
-  const avatarField = schema.fields.find((field) => field.name === "avatar");
-  const accountFields = schema.fields.filter(
-    (field) =>
-      field.name !== "avatar" &&
-      !(row.id && field.name === "password") &&
-      !(row.id && field.name === "confirmPassword"),
-  );
 
-  function handleFieldChange(fieldName: string) {
-    setFieldErrors((current) => clearFieldError(current, fieldName));
-  }
-
-  const associatedAccount =
-    resource === "employees" && row.id
-      ? employeeAccountForAction(resource, row, references)
-      : undefined;
-  const isTerminatingEmployee =
-    resource === "employees" &&
-    row.id &&
-    row.status !== "TERMINATED" &&
-    form.status === "TERMINATED" &&
-    associatedAccount;
-
-  function save() {
-    if (isTerminatingEmployee) {
-      setPendingTerminateSave(true);
-      return;
-    }
-    void executeSave();
-  }
-
-  async function executeSave() {
-    setError(null);
-    setPendingTerminateSave(false);
-    const nextFieldErrors = validateFormFields(
+  async function save() {
+    setError("");
+    const validationError = validatePhoneFields(
       schema.fields,
       form,
+      t,
       resource,
-      row.id,
     );
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    const imageValidationError = validateImageFields(schema.fields, form, t);
+    if (imageValidationError) {
+      setError(imageValidationError);
+      return;
+    }
     const body = requestBodyFromFields(schema.fields, form);
     if (
       resource === "accounts" &&
       !row.id &&
       !String(body.password ?? "").trim()
     ) {
-      nextFieldErrors.password = "passwordRequired";
+      setError(t.passwordRequired);
+      return;
     }
-    if (
-      resource === "accounts" &&
-      String(body.password ?? "").trim() &&
-      !isStrongPassword(String(body.password))
-    ) {
-      nextFieldErrors.password = "passwordStrengthHint";
-    }
-    if (
-      resource === "accounts" &&
-      !row.id &&
-      String(body.password ?? "") !== String(form.confirmPassword ?? "")
-    ) {
-      nextFieldErrors.confirmPassword = "passwordsDoNotMatch";
-    }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
     try {
-      const saved = await api<AnyRow>(
-        `/${resource}${row.id ? `/${row.id}` : ""}`,
-        session,
-        {
-          method: row.id ? "PUT" : "POST",
-          body: JSON.stringify(body),
-        },
-      );
-      const savedId =
-        typeof row.id === "string"
-          ? row.id
-          : typeof saved.id === "string"
-            ? saved.id
-            : undefined;
-      if (assignmentType && assignmentState && savedId) {
-        await syncAssignments(savedId, assignmentState, session);
-      }
-      showToast({
-        message: row.id ? t.updated : t.created,
-        variant: "success",
+      await api(`/${resource}${row.id ? `/${row.id}` : ""}`, session, {
+        method: row.id ? "PUT" : "POST",
+        body: JSON.stringify(body),
       });
+      if (assignmentType && assignmentState && row.id) {
+        await syncAssignments(row.id, assignmentState, session);
+      }
       onSaved();
     } catch (err) {
-      const apiFieldErrors = fieldErrorsFromApiError(resource, err);
-      if (Object.keys(apiFieldErrors).length) {
-        setFieldErrors(apiFieldErrors);
-        return;
-      }
-      const nextError = apiError(err, "saveFailed");
-      setError(nextError);
-      showToast({
-        message: renderPanelError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.saveFailed);
     }
-  }
-
-  function fieldErrorsFromApiError(resource: string, error: unknown) {
-    const message = error instanceof Error ? error.message : "";
-    const errors: FieldErrorMap = {};
-    if (resource === "accounts" && message === "Username already exists") {
-      errors.username = "usernameAlreadyExists";
-    }
-    if (
-      resource === "departments" &&
-      message === "Department code already exists"
-    ) {
-      errors.code = "departmentCodeAlreadyExists";
-    }
-    if (
-      (resource === "roles" && message === "Role code already exists") ||
-      (resource === "permissions" && message === "Permission code already exists")
-    ) {
-      errors.code = "codeAlreadyExists";
-    }
-    return errors;
   }
 
   return (
     <Dialog
       open
       onClose={onClose}
-      maxWidth={
-        resource === "employees" ? "lg" : resource === "accounts" ? "md" : "sm"
-      }
+      maxWidth={resource === "employees" || assignmentType ? "md" : "sm"}
       fullWidth
     >
       <DialogTitle>{dialogTitle(resource, row.id, t)}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} className="pt-2">
+        <Stack spacing={2} sx={{ pt: 1 }}>
           {resource === "employees" ? (
-            <>
-              {associatedAccount && (
-                <Box className="rounded-md bg-[#eef6ff] p-3">
-                  <Typography variant="body2" className="font-bold">
-                    {t.employeeAssociatedAccountNotice}
-                  </Typography>
-                  <Typography variant="body2">
-                    {t.associatedAccount}: {accountSummary(associatedAccount)}
-                  </Typography>
-                </Box>
-              )}
-              <Box className="grid grid-cols-1 gap-6 lg:grid-cols-[180px_minmax(0,1fr)]">
-                <Box className="lg:border-r lg:border-border lg:pr-6">
-                  {photoField &&
-                    renderImageUploadField(
-                      photoField,
-                      form,
-                      setForm,
-                      t,
-                      fieldErrorText(fieldErrors, photoField.name, t),
-                      handleFieldChange,
-                      true,
-                    )}
-                </Box>
-                <FormSections
-                  sections={
-                    row.id ? employeeFormSections : newEmployeeFormSections
-                  }
-                  fields={schema.fields}
-                  form={form}
-                  setForm={setForm}
-                  t={t}
-                  references={references}
-                  currentRowId={row.id}
-                  language={language}
-                  fieldErrors={fieldErrors}
-                  onFieldChange={handleFieldChange}
-                  columns={3}
-                />
-              </Box>
-            </>
-          ) : resource === "accounts" ? (
-            <Box className="grid grid-cols-1 gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
-              <Box className="md:border-r md:border-border md:pr-6">
-                {avatarField &&
-                  renderImageUploadField(
-                    avatarField,
-                    form,
-                    setForm,
-                    t,
-                    fieldErrorText(fieldErrors, avatarField.name, t),
-                    handleFieldChange,
-                    true,
-                  )}
-              </Box>
-              <Stack spacing={2}>
-                {accountFields.map((field) =>
-                  renderField(
-                    resource,
-                    field,
-                    form,
-                    setForm,
-                    t,
-                    references,
-                    row.id,
-                    language,
-                    fieldErrors,
-                    handleFieldChange,
-                  ),
-                )}
-                <AssignmentSection
-                  type="account"
-                  row={row}
-                  session={session}
-                  language={language}
-                  t={t}
-                  onChange={setAssignmentState}
-                  inline
-                />
-              </Stack>
-            </Box>
+            <FormSections
+              sections={row.id ? employeeFormSections : newEmployeeFormSections}
+              fields={schema.fields}
+              form={form}
+              setForm={setForm}
+              t={t}
+              references={references}
+              currentRowId={row.id}
+              columns={3}
+            />
           ) : (
-            <>
-              {schema.fields.map((field) =>
-                renderField(
-                  resource,
-                  field,
-                  form,
-                  setForm,
-                  t,
-                  references,
-                  row.id,
-                  language,
-                  fieldErrors,
-                  handleFieldChange,
-                ),
-              )}
-            </>
+            schema.fields.map((field) =>
+              renderField(
+                resource,
+                field,
+                form,
+                setForm,
+                t,
+                references,
+                row.id,
+              ),
+            )
           )}
           {error && (
             <Typography color="error" variant="body2">
-              {renderPanelError(error, t, language)}
+              {error}
             </Typography>
           )}
-          {assignmentType && assignmentType !== "account" && (
+          {assignmentType && (
             <AssignmentSection
               type={assignmentType}
               row={row}
               session={session}
-              language={language}
               t={t}
               onChange={setAssignmentState}
             />
@@ -753,152 +441,7 @@ function EditDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t.cancel}</Button>
-        <Button onClick={save} variant="contained" startIcon={<Save size={16} />}>
-          {t.save}
-        </Button>
-      </DialogActions>
-      {pendingTerminateSave && associatedAccount && (
-        <Dialog
-          open
-          onClose={() => setPendingTerminateSave(false)}
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>{t.confirmTerminateTitle}</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2">{t.confirmTerminateMessage}</Typography>
-            <Box className="mt-4 rounded-md bg-[#fdecee] p-3">
-              <Typography variant="body2" className="font-bold">
-                {t.employeeAccountTerminateWarning}
-              </Typography>
-              <Typography variant="body2">
-                {t.associatedAccount}: {accountSummary(associatedAccount)}
-              </Typography>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setPendingTerminateSave(false)}>
-              {t.cancel}
-            </Button>
-            <Button
-              color="error"
-              variant="contained"
-              onClick={() => void executeSave()}
-            >
-              {t.save}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
-    </Dialog>
-  );
-}
-
-function UpdateAccountPasswordDialog({
-  row,
-  session,
-  language,
-  t,
-  onClose,
-  onSaved,
-}: {
-  row: AnyRow;
-  session: Session;
-  language: Language;
-  t: Translation;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
-  const [error, setError] = useState<PanelErrorState | null>(null);
-  const { showToast } = useToast();
-
-  async function save() {
-    setError(null);
-    const nextFieldErrors: FieldErrorMap = {};
-    if (!password.trim()) {
-      nextFieldErrors.password = "fieldRequired";
-    } else if (!isStrongPassword(password)) {
-      nextFieldErrors.password = "passwordStrengthHint";
-    }
-    if (!confirmPassword.trim()) {
-      nextFieldErrors.confirmPassword = "fieldRequired";
-    } else if (password !== confirmPassword) {
-      nextFieldErrors.confirmPassword = "passwordsDoNotMatch";
-    }
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
-
-    try {
-      await api(`/accounts/${row.id}`, session, {
-        method: "PUT",
-        body: JSON.stringify({
-          employeeId: row.employeeId,
-          username: row.username,
-          password,
-          status: row.status,
-          avatar: row.avatar ?? null,
-          preferredLanguage: row.preferredLanguage,
-        }),
-      });
-      showToast({ message: t.updated, variant: "success" });
-      onSaved();
-    } catch (err) {
-      const nextError = apiError(err, "saveFailed");
-      setError(nextError);
-      showToast({
-        message: renderPanelError(nextError, t, language),
-        variant: "error",
-      });
-    }
-  }
-
-  return (
-    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t.updatePassword}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} className="pt-2">
-          <PasswordTextField
-            label={formFieldLabel("accounts", t, "password")}
-            value={password}
-            required
-            autoComplete="new-password"
-            onChange={(value) => {
-              setPassword(value);
-              setFieldErrors((current) => clearFieldError(current, "password"));
-            }}
-            error={Boolean(fieldErrors.password)}
-            helperText={fieldErrorText(fieldErrors, "password", t)}
-          />
-          <PasswordTextField
-            label={formFieldLabel("accounts", t, "confirmPassword")}
-            value={confirmPassword}
-            required
-            autoComplete="new-password"
-            onChange={(value) => {
-              setConfirmPassword(value);
-              setFieldErrors((current) =>
-                clearFieldError(current, "confirmPassword"),
-              );
-            }}
-            error={Boolean(fieldErrors.confirmPassword)}
-            helperText={fieldErrorText(fieldErrors, "confirmPassword", t)}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {t.passwordStrengthHint}
-          </Typography>
-          {error && (
-            <Typography color="error" variant="body2">
-              {renderPanelError(error, t, language)}
-            </Typography>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>{t.cancel}</Button>
-        <Button onClick={save} variant="contained" startIcon={<Save size={16} />}>
+        <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
           {t.save}
         </Button>
       </DialogActions>
@@ -924,9 +467,7 @@ export function FormSections({
   t,
   references = { departments: [], employees: [], accounts: [] },
   currentRowId,
-  language = "en",
-  fieldErrors = {},
-  onFieldChange,
+  language = "zh-CN",
   columns = 2,
 }: {
   sections: readonly FormSection[];
@@ -937,8 +478,6 @@ export function FormSections({
   references?: ReferenceData;
   currentRowId?: string;
   language?: Language;
-  fieldErrors?: FieldErrorMap;
-  onFieldChange?: (fieldName: string) => void;
   columns?: 2 | 3;
 }) {
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
@@ -947,15 +486,20 @@ export function FormSections({
     <Stack spacing={2.5}>
       {sections.map((section) => (
         <Box key={section.titleKey}>
-          <Typography variant="subtitle1">
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {t[section.titleKey]}
           </Typography>
           <Box
-            className={
-              columns === 3
-                ? "mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-                : "mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2"
-            }
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, minmax(0, 1fr))",
+                lg: `repeat(${columns}, minmax(0, 1fr))`,
+              },
+              gap: 2,
+              mt: 1,
+            }}
           >
             {section.fields.map((fieldName) => {
               const field = fieldByName.get(fieldName);
@@ -966,7 +510,12 @@ export function FormSections({
               return (
                 <Box
                   key={fieldName}
-                  className={shouldSpan ? "w-full sm:col-span-full" : "w-full"}
+                  sx={{
+                    gridColumn: shouldSpan
+                      ? { xs: "1", sm: "1 / -1" }
+                      : undefined,
+                    width: "100%",
+                  }}
                 >
                   {renderField(
                     "employees",
@@ -977,8 +526,6 @@ export function FormSections({
                     references,
                     currentRowId,
                     language,
-                    fieldErrors,
-                    onFieldChange,
                   )}
                 </Box>
               );
@@ -992,7 +539,7 @@ export function FormSections({
 
 function dialogTitle(resource: string, rowId: unknown, t: Translation) {
   if (resource === "employees") return rowId ? t.updateEmployee : t.newEmployee;
-  return `${rowId ? t.edit : t.create} ${singularResourceLabel(resource, t)}`;
+  return `${rowId ? t.edit : t.create} ${t.resources[resource as keyof typeof t.resources]}`;
 }
 
 async function syncAssignments(
@@ -1035,44 +582,36 @@ function AssignmentSection({
   type,
   row,
   session,
-  language,
   t,
   onChange,
-  inline = false,
 }: {
   type: AssignmentType;
   row: AnyRow;
   session: Session;
-  language: Language;
   t: Translation;
   onChange: (state: AssignmentState) => void;
-  inline?: boolean;
 }) {
   const target = type === "account" ? "roles" : "permissions";
   const [items, setItems] = useState<AnyRow[]>([]);
   const [originalIds, setOriginalIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<PanelErrorState | null>(null);
-  const { showToast } = useToast();
+  const [error, setError] = useState("");
   const targetIdKey = type === "account" ? "roleId" : "permissionId";
   const selectLabel = type === "account" ? t.accountRoles : t.rolePermissions;
 
   async function load() {
-    setError(null);
+    setError("");
     setLoading(true);
     try {
-      const parentId = typeof row.id === "string" ? row.id : undefined;
       const [all, assigned] = await Promise.all([
         api<AnyRow[]>(`/${target}`, session),
-        parentId
-          ? api<AnyRow[]>(
-              type === "account"
-                ? `/assignments/accounts/${parentId}/roles`
-                : `/assignments/roles/${parentId}/permissions`,
-              session,
-            )
-          : Promise.resolve([]),
+        api<AnyRow[]>(
+          type === "account"
+            ? `/assignments/accounts/${row.id}/roles`
+            : `/assignments/roles/${row.id}/permissions`,
+          session,
+        ),
       ]);
       const loadedIds = assigned
         .map((link) => link[targetIdKey])
@@ -1082,12 +621,7 @@ function AssignmentSection({
       setSelectedIds(loadedIds);
       onChange({ type, originalIds: loadedIds, selectedIds: loadedIds });
     } catch (err) {
-      const nextError = apiError(err, "loadFailed");
-      setError(nextError);
-      showToast({
-        message: renderPanelError(nextError, t, language),
-        variant: "error",
-      });
+      setError(err instanceof Error ? err.message : t.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -1113,39 +647,26 @@ function AssignmentSection({
       .join(", ");
   }
 
-  const chipOptions = items.map((item) => ({
-    value: String(item.id ?? ""),
-    label:
-      type === "account"
-        ? assignmentRoleLabel(item, language)
-        : assignmentItemLabel(item),
-  }));
-
   return (
     <>
-      {!inline && <Divider />}
+      <Divider />
       <Box>
-        {!inline && (
-          <Typography variant="subtitle1">
-            {selectLabel}
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          {selectLabel}
+        </Typography>
+        {error && (
+          <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+            {error}
           </Typography>
         )}
         {loading ? (
-          <Skeleton variant="rounded" height={40} className="mt-2" />
-        ) : type === "account" ? (
-          <ComboboxChips
-            label={selectLabel}
-            value={selectedIds}
-            options={chipOptions}
-            onChange={handleSelectionChange}
-            error={Boolean(error)}
-            helperText={error ? renderPanelError(error, t, language) : ""}
-          />
+          <Skeleton variant="rounded" height={40} sx={{ mt: 1 }} />
         ) : (
-          <FormControl fullWidth size="small" className={inline ? "" : "mt-2"}>
+          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+            <InputLabel>{selectLabel}</InputLabel>
             <Select
-              label={selectLabel}
               multiple
+              label={selectLabel}
               value={selectedIds}
               onChange={(event) => handleSelectionChange(event.target.value)}
               renderValue={(selected) =>
@@ -1156,14 +677,12 @@ function AssignmentSection({
                 const itemId = String(item.id ?? "");
                 return (
                   <MenuItem key={itemId} value={itemId}>
-                    {assignmentItemLabel(item)}
+                    <Checkbox checked={selectedIds.includes(itemId)} />
+                    <ListItemText primary={assignmentItemLabel(item)} />
                   </MenuItem>
                 );
               })}
             </Select>
-            <FormHelperText error>
-              {error ? renderPanelError(error, t, language) : ""}
-            </FormHelperText>
           </FormControl>
         )}
       </Box>
@@ -1173,18 +692,6 @@ function AssignmentSection({
 
 function defaultRow(fields: Field[], resource?: string): AnyRow {
   let row: AnyRow = {};
-  if (resource === "accounts") {
-    fields.forEach((field) => {
-      row = setFieldValue(
-        row,
-        field.name,
-        field.name === "preferredLanguage"
-          ? "zh-CN"
-          : (field.options?.[0] ?? ""),
-      );
-    });
-    return row;
-  }
   if (resource === "employees") {
     row = setFieldValue(row, "status", "ACTIVE");
   }
@@ -1202,7 +709,6 @@ function defaultRow(fields: Field[], resource?: string): AnyRow {
 
 export function requestBodyFromFields(fields: Field[], form: AnyRow) {
   return fields.reduce((body, field) => {
-    if (field.name === "confirmPassword") return body;
     const value = getFieldValue(form, field.name);
     const normalizedValue =
       field.name === "mustChangePassword"
@@ -1217,6 +723,7 @@ export function requestBodyFromFields(fields: Field[], form: AnyRow) {
 export function validatePhoneFields(
   fields: Field[],
   form: AnyRow,
+  t: Translation,
   resource: string,
 ) {
   const invalidField = fields.find(
@@ -1224,13 +731,15 @@ export function validatePhoneFields(
       isPhoneField(field.name) &&
       !isValidPhoneValue(getFieldValue(form, field.name)),
   );
-  return invalidField ? fieldError(invalidField.name, "phoneInvalid", resource) : null;
+  return invalidField
+    ? `${formFieldLabel(resource, t, invalidField.name)}: ${t.phoneInvalid}`
+    : "";
 }
 
 export function validateImageFields(
   fields: Field[],
   form: AnyRow,
-  resource: string,
+  t: Translation,
 ) {
   const invalidField = fields.find((field) => {
     const value = getFieldValue(form, field.name);
@@ -1242,7 +751,9 @@ export function validateImageFields(
       !isValidImageDataUrl(value)
     );
   });
-  return invalidField ? fieldError(invalidField.name, "imageInvalid", resource) : null;
+  return invalidField
+    ? `${fieldLabel(t, invalidField.name)}: ${t.imageInvalid}`
+    : "";
 }
 
 function isPhoneField(fieldName: string) {
@@ -1251,44 +762,6 @@ function isPhoneField(fieldName: string) {
 
 function isValidPhoneValue(value: unknown) {
   return /^\d{11}$/.test(String(value ?? ""));
-}
-
-function isStrictCodeField(resource: string, fieldName: string) {
-  return (
-    fieldName === "code" &&
-    (resource === "departments" ||
-      resource === "roles" ||
-      resource === "permissions")
-  );
-}
-
-function isUppercaseLettersUnderscore(value: unknown) {
-  return /^[A-Z_]+$/.test(String(value ?? ""));
-}
-
-function isStrongPassword(value: string) {
-  return (
-    value.length >= 8 &&
-    /[A-Za-z]/.test(value) &&
-    /\d/.test(value) &&
-    /[^A-Za-z0-9]/.test(value)
-  );
-}
-
-function isValidIdCardNumber(value: unknown) {
-  return String(value ?? "").length === 18;
-}
-
-function isFutureDateValue(value: unknown) {
-  const dateValue = String(value ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return false;
-  const today = new Date();
-  const todayValue = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("-");
-  return dateValue > todayValue;
 }
 
 function isImageUploadField(fieldName: string) {
@@ -1364,23 +837,31 @@ function renderField(
   t: Translation,
   references: ReferenceData,
   currentRowId?: string,
-  language: Language = "en",
-  fieldErrors: FieldErrorMap = {},
-  onFieldChange?: (fieldName: string) => void,
+  language: Language = "zh-CN",
 ) {
-  const helperText = fieldErrorText(fieldErrors, field.name, t);
-  const hasFieldError = Boolean(helperText);
+  const optionLabels: Record<string, string> =
+    field.name === "gender"
+      ? t.genderLabels
+      : field.name === "marriedStatus"
+        ? t.marriedStatusLabels
+        : field.name === "status" && resource === "employees"
+          ? t.employeeStatusLabels
+          : field.name === "status" && resource === "departments"
+            ? t.departmentStatusLabels
+            : field.name === "status" && resource === "accounts"
+              ? t.accountStatusLabels
+              : {};
   if (field.readOnly) {
     const value = getFieldValue(form, field.name);
     const display = isDateColumn(field.name)
       ? formatDateValue(value, field.name, language)
-      : databaseValueLabel(t, value, resource, field.name);
+      : (optionLabels[String(value ?? "")] ?? String(value ?? ""));
 
     return (
       <TextField
         key={field.name}
         fullWidth
-        label={formFieldLabel(resource, t, field.name, language)}
+        label={formFieldLabel(resource, t, field.name)}
         value={display}
         disabled
       />
@@ -1388,25 +869,11 @@ function renderField(
   }
 
   if (isImageUploadField(field.name)) {
-    return renderImageUploadField(
-      field,
-      form,
-      setForm,
-      t,
-      helperText,
-      onFieldChange,
-    );
+    return renderImageUploadField(field, form, setForm, t);
   }
 
   if (isChinaAddressField(field.name)) {
-    return renderChinaAddressField(
-      field,
-      form,
-      setForm,
-      t,
-      helperText,
-      onFieldChange,
-    );
+    return renderChinaAddressField(field, form, setForm, t);
   }
 
   if (resource === "accounts" && field.name === "employeeId") {
@@ -1417,7 +884,6 @@ function renderField(
     const employeeOptions = availableAccountEmployees(
       references,
       form.employeeId,
-      !currentRowId,
     );
     return (
       <Autocomplete<AnyRow>
@@ -1428,20 +894,12 @@ function renderField(
         getOptionLabel={accountEmployeeName}
         isOptionEqualToValue={(option, value) => option.id === value.id}
         onChange={(_, employee) =>
-          (onFieldChange?.(field.name),
-          setForm({
-            ...form,
-            employeeId:
-              employee && typeof employee === "object" ? employee.id : null,
-          }))
+          setForm({ ...form, employeeId: employee?.id ?? null })
         }
         renderInput={(params) => (
           <TextField
             {...params}
-            label={formFieldLabel(resource, t, field.name, language)}
-            required={field.required}
-            error={hasFieldError}
-            helperText={helperText}
+            label={formFieldLabel(resource, t, field.name)}
           />
         )}
       />
@@ -1450,122 +908,131 @@ function renderField(
 
   if (resource === "employees" && field.name === "departmentId") {
     const value = getFieldValue(form, field.name);
-    const label = formFieldLabel(resource, t, field.name, language);
+    const label = formFieldLabel(resource, t, field.name);
     return (
       <FormControl key={field.name} fullWidth>
+        <InputLabel>{label}</InputLabel>
         <Select
           label={label}
           value={String(value ?? "")}
           onChange={(event) =>
-            (onFieldChange?.(field.name),
             setForm((current) =>
               setFieldValue(current, field.name, event.target.value || null),
-            ))
+            )
           }
         >
           <MenuItem value="">-</MenuItem>
           {references.departments.map((department) => (
             <MenuItem key={String(department.id)} value={String(department.id)}>
-              {departmentName(department, t, language)}
+              {departmentName(department)}
             </MenuItem>
           ))}
         </Select>
-        <FormHelperText error>{helperText}</FormHelperText>
       </FormControl>
     );
   }
 
-  if (
-    (resource === "employees" || resource === "departments") &&
-    field.name === "managerId"
-  ) {
-    const selectedManager =
-      references.employees.find(
-        (employee) => employee.id === getFieldValue(form, field.name),
-      ) ?? null;
-    const managerOptions = references.employees.filter(
-      (employee) => employee.id !== currentRowId,
-    );
+  if (resource === "employees" && field.name === "managerId") {
+    const value = getFieldValue(form, field.name);
+    const label = formFieldLabel(resource, t, field.name);
     return (
-      <Autocomplete<AnyRow>
-        key={field.name}
-        fullWidth
-        options={managerOptions}
-        value={selectedManager}
-        getOptionLabel={employeeName}
-        isOptionEqualToValue={(option, value) => option.id === value.id}
-        onChange={(_, manager) => {
-          onFieldChange?.(field.name);
-          setForm((current) =>
-            setFieldValue(
-              current,
-              field.name,
-              manager && typeof manager === "object" ? manager.id : null,
-            ),
-          );
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label={formFieldLabel(resource, t, field.name, language)}
-            error={hasFieldError}
-            helperText={helperText}
-          />
-        )}
-      />
+      <FormControl key={field.name} fullWidth>
+        <InputLabel>{label}</InputLabel>
+        <Select
+          label={label}
+          value={String(value ?? "")}
+          onChange={(event) =>
+            setForm((current) =>
+              setFieldValue(current, field.name, event.target.value || null),
+            )
+          }
+        >
+          <MenuItem value="">-</MenuItem>
+          {references.employees
+            .filter((employee) => employee.id !== currentRowId)
+            .map((employee) => (
+              <MenuItem key={String(employee.id)} value={String(employee.id)}>
+                {employeeName(employee)}
+              </MenuItem>
+            ))}
+        </Select>
+      </FormControl>
     );
   }
 
   if (field.options) {
     const value = getFieldValue(form, field.name);
-    const label = formFieldLabel(resource, t, field.name, language);
+    const label = formFieldLabel(resource, t, field.name);
     return (
       <FormControl key={field.name} fullWidth>
+        <InputLabel>{label}</InputLabel>
         <Select
           label={label}
-          required={field.required}
           value={String(value ?? field.options[0] ?? "")}
           onChange={(event) =>
-            (onFieldChange?.(field.name),
             setForm((current) =>
               setFieldValue(current, field.name, event.target.value),
-            ))
+            )
           }
         >
           {field.options.map((option) => (
             <MenuItem key={option} value={option}>
-              {optionLabel(t, option, resource, field.name)}
+              {optionLabels[option] ?? option}
             </MenuItem>
           ))}
         </Select>
-        <FormHelperText error>{helperText}</FormHelperText>
       </FormControl>
     );
   }
 
   const value = String(getFieldValue(form, field.name) ?? "");
+  if (field.type === "date") {
+    return (
+      <DatePicker
+        key={field.name}
+        label={formFieldLabel(resource, t, field.name)}
+        value={value ? dayjs(value) : null}
+        format="YYYY年MM月DD日"
+        disableFuture={field.name === "dateOfBirth"}
+        onChange={(date) =>
+          setForm((current) =>
+            setFieldValue(current, field.name, date?.format("YYYY-MM-DD") ?? ""),
+          )
+        }
+        slotProps={{
+          textField: { fullWidth: true, size: "small", required: field.required },
+          field: { clearable: !field.required },
+        }}
+      />
+    );
+  }
   const isPhone = isPhoneField(field.name);
   const isIdCardNumber = field.name === "idCardNumber";
-  const isLockedAccountUsername =
-    resource === "accounts" && field.name === "username" && Boolean(currentRowId);
   const showPhoneError = isPhone && value !== "" && !isValidPhoneValue(value);
-  const htmlInputProps: React.InputHTMLAttributes<HTMLInputElement> | undefined =
-    isPhone
+  const slotProps = {
+    ...(isPhone
       ? {
-          inputMode: "numeric",
-          maxLength: 11,
+          htmlInput: {
+            inputMode: "numeric",
+            maxLength: 11,
+            pattern: "[0-9]{11}",
+          },
         }
-      : isIdCardNumber
-        ? {
+      : {}),
+    ...(isIdCardNumber
+      ? {
+          htmlInput: {
             maxLength: 18,
-          }
-        : undefined;
+          },
+        }
+      : {}),
+  };
 
   if (field.type === "password") {
     return (
       <PasswordTextField
         key={field.name}
-        label={formFieldLabel(resource, t, field.name, language)}
+        label={formFieldLabel(resource, t, field.name)}
         value={value}
         required={
           field.required &&
@@ -1576,12 +1043,9 @@ function renderField(
           )
         }
         autoComplete="new-password"
-        onChange={(nextValue) => {
-          onFieldChange?.(field.name);
-          setForm((current) => setFieldValue(current, field.name, nextValue));
-        }}
-        error={hasFieldError}
-        helperText={helperText}
+        onChange={(nextValue) =>
+          setForm((current) => setFieldValue(current, field.name, nextValue))
+        }
       />
     );
   }
@@ -1590,43 +1054,33 @@ function renderField(
     <TextField
       key={field.name}
       fullWidth
-      label={formFieldLabel(resource, t, field.name, language)}
+      label={formFieldLabel(resource, t, field.name)}
       type={field.type ?? "text"}
-      disabled={isLockedAccountUsername}
       required={
         field.required &&
         !(resource === "accounts" && field.name === "password" && currentRowId)
       }
       value={value}
       onChange={(event) => {
-        onFieldChange?.(field.name);
         const nextValue = isPhone
           ? event.target.value.replace(/\D/g, "").slice(0, 11)
           : isIdCardNumber
             ? event.target.value.slice(0, 18)
-            : (resource === "departments" ||
-                  resource === "roles" ||
-                  resource === "permissions") &&
-                field.name === "code"
-              ? event.target.value.toUpperCase()
             : event.target.value;
         setForm((current) => setFieldValue(current, field.name, nextValue));
       }}
-      error={hasFieldError || showPhoneError}
-      helperText={helperText ?? (showPhoneError ? t.phoneInvalid : undefined)}
-      slotProps={htmlInputProps ? { htmlInput: htmlInputProps } : undefined}
+      error={showPhoneError}
+      helperText={showPhoneError ? t.phoneInvalid : undefined}
+      slotProps={Object.keys(slotProps).length ? slotProps : undefined}
     />
   );
 }
 
-export function renderImageUploadField(
+function renderImageUploadField(
   field: Field,
   form: AnyRow,
   setForm: React.Dispatch<React.SetStateAction<AnyRow>>,
   t: Translation,
-  helperText?: string,
-  onFieldChange?: (fieldName: string) => void,
-  portraitLayout = false,
 ) {
   const value = String(getFieldValue(form, field.name) ?? "");
   const label = fieldLabel(t, field.name);
@@ -1636,7 +1090,6 @@ export function renderImageUploadField(
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    onFieldChange?.(field.name);
     if (!IMAGE_UPLOAD_TYPES.has(file.type)) {
       window.alert(t.imageInvalid);
       return;
@@ -1663,43 +1116,43 @@ export function renderImageUploadField(
 
   return (
     <Box>
-      <Typography variant="body2" color="text.secondary" className="mb-1.5">
+      <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.75 }}>
         {label}
       </Typography>
-      <Stack
-        direction={portraitLayout ? "column" : "row"}
-        spacing={1.5}
-        className={portraitLayout ? "items-start" : "items-center"}
-      >
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
         <Box
-          className={cn(
-            "grid shrink-0 place-items-center overflow-hidden rounded-md border border-[#cfd8d3] bg-[#f5f7f4]",
-            portraitLayout ? "h-[180px] w-full" : "size-[72px]",
-          )}
+          sx={{
+            width: 72,
+            height: 72,
+            borderRadius: 1,
+            border: "1px solid #cfd8d3",
+            bgcolor: "#f5f7f4",
+            display: "grid",
+            placeItems: "center",
+            overflow: "hidden",
+            flexShrink: 0,
+          }}
         >
           {hasImage ? (
             <Box
               component="img"
               src={value}
               alt={label}
-              className="h-full w-full object-cover"
+              sx={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           ) : (
-            <Camera size={22} className="text-muted-foreground" />
+            <PhotoCameraIcon color="disabled" />
           )}
         </Box>
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1}
-          className={cn(
-            "min-w-0 items-center",
-            portraitLayout ? "w-full" : "flex-wrap",
-          )}
+          sx={{ alignItems: { sm: "center" }, minWidth: 0 }}
         >
           <Button
             component="label"
             variant="outlined"
-            className={portraitLayout ? "flex-1" : undefined}
+            startIcon={<PhotoCameraIcon />}
           >
             {hasImage ? t.changeImage : t.uploadImage}
             <input
@@ -1713,12 +1166,11 @@ export function renderImageUploadField(
             <Tooltip title={t.removeImage}>
               <IconButton
                 color="error"
-                onClick={() => {
-                  onFieldChange?.(field.name);
-                  setForm((current) => setFieldValue(current, field.name, null));
-                }}
+                onClick={() =>
+                  setForm((current) => setFieldValue(current, field.name, null))
+                }
               >
-                <Trash2 size={16} />
+                <DeleteIcon />
               </IconButton>
             </Tooltip>
           )}
@@ -1727,7 +1179,6 @@ export function renderImageUploadField(
       <Typography variant="caption" color="text.secondary">
         JPG, PNG, GIF, WebP, BMP - 20MB
       </Typography>
-      <FormHelperText error>{helperText}</FormHelperText>
     </Box>
   );
 }
@@ -1737,8 +1188,6 @@ function renderChinaAddressField(
   form: AnyRow,
   setForm: React.Dispatch<React.SetStateAction<AnyRow>>,
   t: Translation,
-  helperText?: string,
-  onFieldChange?: (fieldName: string) => void,
 ) {
   const province = getFieldValue(form, "addressProvince");
   const city = getFieldValue(form, "addressCity");
@@ -1758,7 +1207,6 @@ function renderChinaAddressField(
   const label = formFieldLabel("employees", t, field.name);
 
   function updateAddress(value: string) {
-    onFieldChange?.(field.name);
     setForm((current) => {
       if (field.name === "addressProvince") {
         return {
@@ -1795,14 +1243,7 @@ function renderChinaAddressField(
           updateAddress(nextValue);
         }
       }}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={label}
-          error={Boolean(helperText)}
-          helperText={helperText}
-        />
-      )}
+      renderInput={(params) => <TextField {...params} label={label} />}
     />
   );
 }
@@ -1813,8 +1254,22 @@ function displayValue(
   value: unknown,
   references: ReferenceData,
   language: Language,
-  t: Translation,
 ) {
+  if (resource === "accounts" && column === "securityQuestionsConfigured") {
+    const labels: Record<string, string> = messages.securityQuestionsConfiguredLabels;
+    return labels[String(value ?? "")] ?? String(value ?? "");
+  }
+  if (resource === "accounts" && column === "failedLoginCount") {
+    return value == null ? "" : `${value}${messages.loginAttemptCountUnit}`;
+  }
+  if (resource === "departments" && column === "status") {
+    const labels: Record<string, string> = messages.departmentStatusLabels;
+    return labels[String(value ?? "")] ?? String(value ?? "");
+  }
+  if (resource === "accounts" && column === "status") {
+    const labels: Record<string, string> = messages.accountStatusLabels;
+    return labels[String(value ?? "")] ?? String(value ?? "");
+  }
   if (resource === "accounts" && column === "employeeId") {
     const employee = references.employees.find((item) => item.id === value);
     return employee ? accountEmployeeName(employee) : String(value ?? "");
@@ -1823,15 +1278,9 @@ function displayValue(
     const manager = references.employees.find((item) => item.id === value);
     return manager ? employeeName(manager) : String(value ?? "");
   }
-  if (resource === "departments" && column === "employeeCount") {
-    return String(departmentEmployeeCount(value, references));
-  }
-  if (resource === "departments" && column === "chineseName") {
-    return String(value ?? "");
-  }
   if (resource === "employees" && column === "departmentId") {
     const department = references.departments.find((item) => item.id === value);
-    return department ? departmentName(department, t, language) : String(value ?? "");
+    return department ? departmentName(department) : String(value ?? "");
   }
   if (resource === "employees" && column === "managerId") {
     const manager = references.employees.find((item) => item.id === value);
@@ -1840,7 +1289,7 @@ function displayValue(
   if (isDateColumn(column)) {
     return formatDateValue(value, column, language);
   }
-  return databaseValueLabel(t, value, resource, column);
+  return String(value ?? "");
 }
 
 function buildGridColumns(
@@ -1851,16 +1300,14 @@ function buildGridColumns(
   references: ReferenceData,
   language: Language,
   t: Translation,
-  session: Session,
   actions: { edit: boolean; delete: boolean },
   setEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
-  setPasswordEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
   setPendingDelete: React.Dispatch<React.SetStateAction<AnyRow | null>>,
 ): GridColDef[] {
   const dataColumns = [
     ...columns.map((column): GridColDef => {
       const sortRule = sort?.column === column ? sort : undefined;
-      const headerLabel = resourceFieldLabel(resource, t, column, language);
+      const headerLabel = fieldLabel(t, column);
 
       return {
         field: column,
@@ -1879,17 +1326,12 @@ function buildGridColumns(
           </TableSortLabel>
         ),
         renderCell: (params: { row: AnyRow }) => {
-          const rawValue =
-            resource === "departments" && column === "employeeCount"
-              ? params.row.id
-              : params.row[column];
           const value = displayValue(
             resource,
             column,
-            rawValue,
+            params.row[column],
             references,
             language,
-            t,
           );
           if (isImageUploadField(column)) {
             return isValidImageDataUrl(params.row[column]) ? (
@@ -1897,7 +1339,12 @@ function buildGridColumns(
                 component="img"
                 src={String(params.row[column])}
                 alt={headerLabel}
-                className="size-9 rounded-md object-cover"
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 1,
+                  objectFit: "cover",
+                }}
               />
             ) : (
               ""
@@ -1906,7 +1353,11 @@ function buildGridColumns(
           return (
             <Box
               title={value}
-              className="overflow-hidden text-ellipsis whitespace-nowrap"
+              sx={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
               {value}
             </Box>
@@ -1926,50 +1377,39 @@ function buildGridColumns(
       sortable: false,
       filterable: false,
       disableColumnMenu: true,
-      width: resource === "accounts" ? 136 : 104,
+      width: 104,
       align: "right",
       headerAlign: "right",
-      renderCell: (params: { row: AnyRow }) => {
-        const isSelfDelete = isCurrentUserRow(resource, params.row, session);
-        return (
-          <Stack
-            direction="row"
-            spacing={0.5}
-            className="min-h-full w-full items-center justify-end"
-          >
-            {actions.edit && (
-              <Tooltip title={t.edit}>
-                <IconButton size="small" onClick={() => setEditing(params.row)}>
-                  <Pencil size={16} />
-                </IconButton>
-              </Tooltip>
-            )}
-            {resource === "accounts" && actions.edit && (
-              <Tooltip title={t.updatePassword}>
-                <IconButton
-                  size="small"
-                  onClick={() => setPasswordEditing(params.row)}
-                >
-                  <KeyRound size={16} />
-                </IconButton>
-              </Tooltip>
-            )}
-            {actions.delete && (
-              <Tooltip title={isSelfDelete ? t.cannotDeleteSelf : t.delete}>
-                <IconButton
-                  size="small"
-                  disabled={isSelfDelete}
-                  onClick={() => {
-                    if (!isSelfDelete) setPendingDelete(params.row);
-                  }}
-                >
-                  <Trash2 size={16} />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Stack>
-        );
-      },
+      renderCell: (params: { row: AnyRow }) => (
+        <Stack
+          direction="row"
+          spacing={0.5}
+          sx={{
+            alignItems: "center",
+            justifyContent: "flex-end",
+            minHeight: "100%",
+            width: "100%",
+          }}
+        >
+          {actions.edit && (
+            <Tooltip title={t.edit}>
+              <IconButton size="small" onClick={() => setEditing(params.row)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {actions.delete && (
+            <Tooltip title={t.delete}>
+              <IconButton
+                size="small"
+                onClick={() => setPendingDelete(params.row)}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
+      ),
     },
   ];
 }
@@ -1986,15 +1426,14 @@ function sortRows(
   resource: string,
   references: ReferenceData,
   language: Language,
-  t: Translation,
 ) {
   if (!sort) return rows;
   const direction = sort.direction === "asc" ? 1 : -1;
   return [...rows].sort(
     (left, right) =>
       compareSortValues(
-        sortValue(left, sort.column, resource, references, language, t),
-        sortValue(right, sort.column, resource, references, language, t),
+        sortValue(left, sort.column, resource, references, language),
+        sortValue(right, sort.column, resource, references, language),
       ) * direction,
   );
 }
@@ -2005,23 +1444,18 @@ function sortValue(
   resource: string,
   references: ReferenceData,
   language: Language,
-  t: Translation,
 ) {
   const value = row[column];
-  if (resource === "departments" && column === "employeeCount") {
-    return departmentEmployeeCount(row.id, references);
-  }
   if (isDateColumn(column)) {
     return parseDateValue(value, column) ?? "";
   }
-  if (typeof value === "number") return value;
+  if (typeof value === "number" || typeof value === "boolean") return value;
   return displayValue(
     resource,
     column,
     value,
     references,
     language,
-    t,
   ).toLocaleLowerCase();
 }
 
@@ -2073,39 +1507,13 @@ function parseDateValue(value: unknown, column: string) {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
-function employeeAccountForAction(
+function employeeAccountForDelete(
   resource: string,
   row: AnyRow,
   references: ReferenceData,
 ) {
   if (resource !== "employees") return undefined;
   return references.accounts.find((account) => account.employeeId === row.id);
-}
-
-function isCurrentUserRow(resource: string, row: AnyRow, session: Session) {
-  if (resource === "accounts") {
-    return Boolean(session.accountId && row.id === session.accountId);
-  }
-  if (resource === "employees") {
-    return Boolean(session.employeeId && row.id === session.employeeId);
-  }
-  return false;
-}
-
-function departmentEmployeesForDelete(
-  resource: string,
-  row: AnyRow,
-  references: ReferenceData,
-) {
-  if (resource !== "departments") return [];
-  return references.employees.filter((employee) => employee.departmentId === row.id);
-}
-
-function departmentEmployeeCount(departmentId: unknown, references: ReferenceData) {
-  return references.employees.filter(
-    (employee) => employee.departmentId === departmentId,
-  )
-    .length;
 }
 
 function accountSummary(account?: AnyRow) {
@@ -2122,17 +1530,9 @@ function assignmentItemLabel(item: AnyRow) {
   );
 }
 
-function assignmentRoleLabel(item: AnyRow, language: Language) {
-  const englishName = String(item.name ?? "").trim();
-  const chineseName = String(item.chineseName ?? "").trim();
-  if (language === "zh-CN" && chineseName) return chineseName;
-  return englishName || chineseName || String(item.id ?? "");
-}
-
 function availableAccountEmployees(
   references: ReferenceData,
   currentEmployeeId: unknown,
-  activeOnly = false,
 ) {
   const assignedEmployeeIds = new Set(
     references.accounts
@@ -2140,35 +1540,14 @@ function availableAccountEmployees(
       .filter((employeeId) => employeeId && employeeId !== currentEmployeeId),
   );
   return references.employees.filter(
-    (employee) =>
-      !assignedEmployeeIds.has(employee.id) &&
-      (!activeOnly ||
-        employee.status === "ACTIVE" ||
-        employee.id === currentEmployeeId),
+    (employee) => !assignedEmployeeIds.has(employee.id),
   );
 }
 
-function departmentName(department: AnyRow, t: Translation, language: Language) {
-  return [
-    departmentDisplayName(department, language, t),
-    department.code ? `(${department.code})` : "",
-  ]
+function departmentName(department: AnyRow) {
+  return [department.name, department.code ? `(${department.code})` : ""]
     .filter(Boolean)
     .join(" ");
-}
-
-function departmentDisplayName(
-  department: AnyRow,
-  language: Language,
-  t: Translation,
-) {
-  const name = String(department.name ?? "").trim();
-  if (!name) return "";
-  if (language === "zh-CN") {
-    const chineseName = String(department.chineseName ?? "").trim();
-    if (chineseName) return chineseName;
-  }
-  return t.departmentNames[name as keyof typeof t.departmentNames] ?? name;
 }
 
 function accountEmployeeName(employee: AnyRow) {
@@ -2201,64 +1580,9 @@ function fieldLabel(t: Translation, key: string) {
   );
 }
 
-function optionLabel(
-  t: Translation,
-  option: string,
-  resource?: string,
-  fieldName?: string,
-) {
-  if (resource === "employees" && fieldName === "status") {
-    return (
-      t.employeeStatusLabels[
-        option as keyof typeof t.employeeStatusLabels
-      ] ?? option
-    );
-  }
-  return (
-    t.optionLabels[option as keyof typeof t.optionLabels] ??
-    option
-  );
-}
-
-function databaseValueLabel(
-  t: Translation,
-  value: unknown,
-  resource?: string,
-  fieldName?: string,
-) {
-  if (value === null || value === undefined || value === "") return "";
-  return optionLabel(t, String(value), resource, fieldName);
-}
-
-function singularResourceLabel(resource: string, t: Translation) {
-  if (resource === "accounts") return fieldLabel(t, "account");
-  if (resource === "roles") return fieldLabel(t, "role");
-  if (resource === "permissions") return fieldLabel(t, "permission");
-  if (resource === "departments") return fieldLabel(t, "department");
-  const label = t.resources[resource as keyof typeof t.resources] ?? resource;
-  return label.endsWith("s") ? label.slice(0, -1) : label;
-}
-
-function formFieldLabel(
-  resource: string,
-  t: Translation,
-  key: string,
-  language?: Language,
-) {
+function formFieldLabel(resource: string, t: Translation, key: string) {
   if (resource === "employees" && key.startsWith("emergencyContact.")) {
     return fieldLabel(t, key.replace("emergencyContact.", ""));
   }
-  if ((resource === "departments" || resource === "roles") && key === "name") {
-    return language === "zh-CN" ? "英文名称" : "English Name";
-  }
   return fieldLabel(t, key);
-}
-
-function resourceFieldLabel(
-  resource: string,
-  t: Translation,
-  key: string,
-  language?: Language,
-) {
-  return formFieldLabel(resource, t, key, language);
 }

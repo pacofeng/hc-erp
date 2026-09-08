@@ -114,6 +114,7 @@ CREATE TABLE permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
+    chinese_name VARCHAR(100) NOT NULL,
     description TEXT,
     module_code VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -175,20 +176,20 @@ VALUES
     ('Admin Manager', '管理员', 'ADMIN_MANAGER', 'ACTIVE', 'Manage employees and accounts'),
     ('Admin Clerk', '行政文员', 'ADMIN_CLERK', 'ACTIVE', 'Read employees and accounts');
 
-INSERT INTO permissions (code, name, description, module_code)
+INSERT INTO permissions (code, name, chinese_name, description, module_code)
 VALUES
-    ('EMPLOYEE_VIEW', 'View employees', 'Read employee records', 'EMPLOYEE'),
-    ('EMPLOYEE_CREATE', 'Create employees', 'Create employee records', 'EMPLOYEE'),
-    ('EMPLOYEE_EDIT', 'Edit employees', 'Update employee records', 'EMPLOYEE'),
-    ('EMPLOYEE_DELETE', 'Delete employees', 'Delete employee records', 'EMPLOYEE'),
-    ('ACCOUNT_VIEW', 'View accounts', 'Read account records', 'ACCOUNT'),
-    ('ACCOUNT_CREATE', 'Create accounts', 'Create account records', 'ACCOUNT'),
-    ('ACCOUNT_EDIT', 'Edit accounts', 'Update account records', 'ACCOUNT'),
-    ('ACCOUNT_DELETE', 'Delete accounts', 'Delete account records', 'ACCOUNT'),
-    ('DEPARTMENT_VIEW', 'View departments', 'Read department records', 'DEPARTMENT'),
-    ('DEPARTMENT_CREATE', 'Create departments', 'Create department records', 'DEPARTMENT'),
-    ('DEPARTMENT_EDIT', 'Edit departments', 'Update department records', 'DEPARTMENT'),
-    ('DEPARTMENT_DELETE', 'Delete departments', 'Delete department records', 'DEPARTMENT');
+    ('EMPLOYEE_VIEW', 'View employees', '查看员工', 'Read employee records', 'EMPLOYEE'),
+    ('EMPLOYEE_CREATE', 'Create employees', '创建员工', 'Create employee records', 'EMPLOYEE'),
+    ('EMPLOYEE_EDIT', 'Edit employees', '编辑员工', 'Update employee records', 'EMPLOYEE'),
+    ('EMPLOYEE_DELETE', 'Delete employees', '删除员工', 'Delete employee records', 'EMPLOYEE'),
+    ('ACCOUNT_VIEW', 'View accounts', '查看账号', 'Read account records', 'ACCOUNT'),
+    ('ACCOUNT_CREATE', 'Create accounts', '创建账号', 'Create account records', 'ACCOUNT'),
+    ('ACCOUNT_EDIT', 'Edit accounts', '编辑账号', 'Update account records', 'ACCOUNT'),
+    ('ACCOUNT_DELETE', 'Delete accounts', '删除账号', 'Delete account records', 'ACCOUNT'),
+    ('DEPARTMENT_VIEW', 'View departments', '查看部门', 'Read department records', 'DEPARTMENT'),
+    ('DEPARTMENT_CREATE', 'Create departments', '创建部门', 'Create department records', 'DEPARTMENT'),
+    ('DEPARTMENT_EDIT', 'Edit departments', '编辑部门', 'Update department records', 'DEPARTMENT'),
+    ('DEPARTMENT_DELETE', 'Delete departments', '删除部门', 'Delete department records', 'DEPARTMENT');
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT role.id, permission.id

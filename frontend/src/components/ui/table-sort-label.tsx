@@ -1,1 +1,0 @@
-export { TableSortLabel } from "./shadcn";

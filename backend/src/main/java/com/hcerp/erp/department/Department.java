@@ -6,8 +6,7 @@ import java.util.UUID;
 import com.hcerp.erp.common.Enums.DepartmentStatus;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -20,9 +19,8 @@ public class Department {
     public UUID id;
     public String code;
     public String name;
-    public String chineseName;
     public UUID managerId;
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = DepartmentStatusConverter.class)
     public DepartmentStatus status = DepartmentStatus.ACTIVE;
     public OffsetDateTime createdAt;
     public OffsetDateTime updatedAt;

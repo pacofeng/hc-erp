@@ -1,15 +1,15 @@
 import type { Field } from "./types";
 
-const emergencyContactRelationOptions = [
-  "SPOUSE",
-  "PARENT",
-  "CHILD",
-  "SIBLING",
-  "GRANDPARENT",
-  "AUNT_UNCLE",
-  "COUSIN",
-  "NIECE_NEPHEW",
-  "OTHER",
+const emergencyContactRelations = [
+  "配偶",
+  "父母",
+  "子女",
+  "兄弟姐妹",
+  "祖父母 / 外祖父母",
+  "姑姨 / 叔舅",
+  "堂/表兄弟姐妹",
+  "侄/甥",
+  "其他",
 ];
 
 export const employeeTableColumns = [
@@ -21,38 +21,11 @@ export const employeeTableColumns = [
   "hireDate",
 ];
 
-export const departmentTableColumns = [
-  "code",
-  "name",
-  "chineseName",
-  "managerId",
-  "employeeCount",
-  "status",
-];
-
-export const accountTableColumns = [
-  "employeeId",
-  "username",
-  "status",
-  "preferredLanguage",
-  "securityQuestionsConfigured",
-  "lastLoginAt",
-];
-
-export const roleTableColumns = [
-  "code",
-  "name",
-  "chineseName",
-  "description",
-  "status",
-  "createdAt",
-  "updatedAt",
-];
-
 export const employeeFormSections = [
   {
     titleKey: "personalInfo",
     fields: [
+      "photo",
       "fullName",
       "idCardNumber",
       "gender",
@@ -100,9 +73,12 @@ export const newEmployeeFormSections = employeeFormSections.map((section) =>
 
 export const settingsFormSections = [
   {
+    titleKey: "accountInfo",
+    fields: ["avatar", "username"],
+  },
+  {
     titleKey: "personalInfo",
     fields: [
-      "username",
       "fullName",
       "idCardNumber",
       "gender",
@@ -144,11 +120,10 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
       { name: "employeeNo", required: true },
       { name: "fullName", required: true },
       { name: "idCardNumber", required: true },
-      { name: "gender", required: true, options: ["MALE", "FEMALE"] },
+      { name: "gender", options: ["MALE", "FEMALE"] },
       { name: "dateOfBirth", type: "date", required: true },
       {
         name: "marriedStatus",
-        required: true,
         options: ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"],
       },
       { name: "phone", required: true },
@@ -159,25 +134,20 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
       { name: "address" },
       { name: "departmentId" },
       { name: "managerId" },
-      { name: "jobTitle", required: true },
-      { name: "hireDate", type: "date", required: true },
+      { name: "jobTitle" },
+      { name: "hireDate", type: "date" },
       { name: "terminationDate", type: "date" },
       { name: "status", options: ["ACTIVE", "TERMINATED"] },
       { name: "emergencyContact.fullName", required: true },
       { name: "emergencyContact.phone", required: true },
-      {
-        name: "emergencyContact.relation",
-        required: true,
-        options: emergencyContactRelationOptions,
-      },
+      { name: "emergencyContact.relation", required: true, options: emergencyContactRelations },
     ],
   },
   departments: {
     label: "Departments",
     fields: [
-      { name: "code", required: true },
+      { name: "code", options: ["SYS", "HR"] },
       { name: "name", required: true },
-      { name: "chineseName", required: true },
       { name: "managerId" },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
     ],
@@ -185,21 +155,20 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   accounts: {
     label: "Accounts",
     fields: [
-      { name: "employeeId", required: true },
+      { name: "employeeId" },
       { name: "username", required: true },
       { name: "password", type: "password", required: true },
-      { name: "confirmPassword", type: "password", required: true },
       { name: "status", options: ["ACTIVE", "LOCKED", "TERMINATED"] },
+      { name: "accountType", options: ["USER", "SYSTEM"] },
+      { name: "mustChangePassword", options: ["false", "true"] },
       { name: "avatar" },
-      { name: "preferredLanguage", options: ["zh-CN", "en"] },
     ],
   },
   roles: {
     label: "Roles",
     fields: [
-      { name: "code", required: true },
       { name: "name", required: true },
-      { name: "chineseName", required: true },
+      { name: "code", options: ["SYSTEM_ADMIN", "HR_MANAGER", "HR_OFFICE"] },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
       { name: "description" },
     ],
@@ -207,10 +176,22 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   permissions: {
     label: "Permissions",
     fields: [
-      { name: "code", required: true },
+      {
+        name: "code",
+        options: [
+          "EMPLOYEE_VIEW",
+          "EMPLOYEE_CREATE",
+          "EMPLOYEE_EDIT",
+          "EMPLOYEE_DELETE",
+          "DEPARTMENT_VIEW",
+          "DEPARTMENT_CREATE",
+          "DEPARTMENT_EDIT",
+          "DEPARTMENT_DELETE",
+        ],
+      },
       { name: "name", required: true },
       { name: "description" },
-      { name: "moduleCode", options: ["EMPLOYEE", "ACCOUNT", "DEPARTMENT"] },
+      { name: "moduleCode", options: ["EMPLOYEE", "DEPARTMENT"] },
     ],
   },
 };
@@ -234,11 +215,7 @@ export const settingsFields: Field[] = [
   { name: "address" },
   { name: "emergencyContact.fullName", required: true },
   { name: "emergencyContact.phone", required: true },
-  {
-    name: "emergencyContact.relation",
-    required: true,
-    options: emergencyContactRelationOptions,
-  },
+  { name: "emergencyContact.relation", required: true, options: emergencyContactRelations },
   { name: "employeeNo", readOnly: true },
   { name: "departmentName", readOnly: true },
   { name: "managerName", readOnly: true },

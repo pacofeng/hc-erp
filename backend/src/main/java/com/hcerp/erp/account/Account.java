@@ -7,6 +7,7 @@ import com.hcerp.erp.common.Enums.AccountStatus;
 import com.hcerp.erp.common.Enums.AccountType;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -23,7 +24,7 @@ public class Account {
     public UUID employeeId;
     public String username;
     public String passwordHash;
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = AccountStatusConverter.class)
     public AccountStatus status = AccountStatus.ACTIVE;
     @Enumerated(EnumType.STRING)
     public AccountType accountType = AccountType.USER;
