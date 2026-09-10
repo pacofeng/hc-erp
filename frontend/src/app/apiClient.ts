@@ -6,6 +6,7 @@ import {
 } from "./constants";
 import { getResourceFromPath, navigate } from "./resources";
 import type { Session } from "./types";
+import { messages } from "./i18n";
 
 export function authHeaders(session: Session) {
   return {
@@ -32,7 +33,17 @@ export async function api<T>(
       expireSession();
     }
     const body = text ? tryParseJson(text) : {};
-    throw new Error(body.message ?? `Request failed: ${response.status}`);
+    const message = body.message;
+    const required = typeof message === "string"
+      ? message.match(/^(\S+) must not be (?:null|blank|empty)$/)
+      : null;
+    if (required) {
+      const field = required[1] as keyof typeof messages.fields;
+      throw new Error(messages.requiredFields + (messages.fields[field] ?? field));
+    }
+    throw new Error(message === "Duplicate value already exists"
+      ? "数据已存在，请检查员工编号、身份证号码等唯一字段"
+      : message ?? `请求失败（${response.status}）`);
   }
   if (!text) return undefined as T;
   return JSON.parse(text);

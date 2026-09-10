@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { showToast } from "../../app/toast";
 import dayjs from "dayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import {
@@ -141,9 +142,12 @@ export function ResourcePanel({
     try {
       await api<void>(`/${resource}/${row.id}`, session, { method: "DELETE" });
       setPendingDelete(null);
+      showToast(t.deleted, "success");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.deleteFailed);
+      const message = err instanceof Error ? err.message : t.deleteFailed;
+      setError(message);
+      showToast(message, "error");
     }
   }
 
@@ -351,6 +355,18 @@ function EditDialog({
 
   async function save() {
     setError("");
+    const missingFields = schema.fields.filter((field) =>
+      field.required &&
+      !(resource === "accounts" && row.id && field.name === "password") &&
+      !String(getFieldValue(form, field.name) ?? "").trim(),
+    );
+    if (missingFields.length) {
+      const message = t.requiredFields + missingFields
+        .map((field) => formFieldLabel(resource, t, field.name)).join("、");
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
     const validationError = validatePhoneFields(
       schema.fields,
       form,
@@ -359,11 +375,13 @@ function EditDialog({
     );
     if (validationError) {
       setError(validationError);
+      showToast(validationError, "error");
       return;
     }
     const imageValidationError = validateImageFields(schema.fields, form, t);
     if (imageValidationError) {
       setError(imageValidationError);
+      showToast(imageValidationError, "error");
       return;
     }
     const body = requestBodyFromFields(schema.fields, form);
@@ -373,6 +391,7 @@ function EditDialog({
       !String(body.password ?? "").trim()
     ) {
       setError(t.passwordRequired);
+      showToast(t.passwordRequired, "error");
       return;
     }
     try {
@@ -383,9 +402,12 @@ function EditDialog({
       if (assignmentType && assignmentState && row.id) {
         await syncAssignments(row.id, assignmentState, session);
       }
+      showToast(t.saved, "success");
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      const message = err instanceof Error ? err.message : t.saveFailed;
+      setError(message);
+      showToast(message, "error");
     }
   }
 

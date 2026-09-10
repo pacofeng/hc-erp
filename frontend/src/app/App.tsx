@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ToastHost } from "./toast";
 import {
   Button,
   CssBaseline,
@@ -248,6 +249,7 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <ToastHost />
       {session ? (
         !session.securityQuestionsConfigured ? (
           <SecurityQuestionSetup

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { showToast } from "../../app/toast";
 import {
   Box,
   Button,
@@ -66,6 +67,7 @@ export function SettingsPanel({
     );
     if (validationError) {
       setError(validationError);
+      showToast(validationError, "error");
       return;
     }
     const imageValidationError = validateImageFields(
@@ -75,6 +77,7 @@ export function SettingsPanel({
     );
     if (imageValidationError) {
       setError(imageValidationError);
+      showToast(imageValidationError, "error");
       return;
     }
     setSaving(true);
@@ -87,8 +90,11 @@ export function SettingsPanel({
         }),
       );
       setSaved(true);
+      showToast(t.saved, "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.saveFailed);
+      const message = err instanceof Error ? err.message : t.saveFailed;
+      setError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
