@@ -15,6 +15,17 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     boolean existsByUsername(String username);
 
     @Query(value = """
+            SELECT a.id
+            FROM accounts a
+            JOIN employees e ON e.id = a.employee_id
+            WHERE e.full_name = :fullName
+              AND a.status = '启用'
+            ORDER BY a.created_at
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<UUID> findIdByEmployeeFullName(@Param("fullName") String fullName);
+
+    @Query(value = """
             SELECT r.code
             FROM roles r
             JOIN account_roles ar ON ar.role_id = r.id

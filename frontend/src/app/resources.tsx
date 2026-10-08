@@ -4,17 +4,25 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import BusinessIcon from "@mui/icons-material/Business";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import SettingsIcon from "@mui/icons-material/Settings";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import GroupsIcon from "@mui/icons-material/Groups";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import { RESOURCE_STORAGE_KEY } from "./constants";
 import type { Session } from "./types";
 
 export const resources = [
   { key: "dashboard", icon: <DashboardIcon fontSize="small" /> },
+  { key: "orders", icon: <AssignmentIcon fontSize="small" /> },
+  { key: "customers", icon: <GroupsIcon fontSize="small" /> },
+  { key: "products", icon: <Inventory2Icon fontSize="small" /> },
   { key: "employees", icon: <BadgeIcon fontSize="small" /> },
   { key: "departments", icon: <BusinessIcon fontSize="small" /> },
   { key: "accounts", icon: <AccountCircleIcon fontSize="small" /> },
   { key: "roles", icon: <AdminPanelSettingsIcon fontSize="small" /> },
   { key: "permissions", icon: <VpnKeyIcon fontSize="small" /> },
+  { key: "notifications", icon: <NotificationsIcon fontSize="small" /> },
   { key: "settings", icon: <SettingsIcon fontSize="small" /> },
 ] as const;
 
@@ -24,21 +32,48 @@ export const resourceKeys = resources.map((resource) => resource.key);
 
 export const resourceAuthorities: Record<ResourceKey, string[]> = {
   dashboard: [],
+  orders: ["ORDER_VIEW", "ROLE_SYSTEM_ADMIN"],
+  customers: ["CUSTOMER_VIEW", "ROLE_SYSTEM_ADMIN"],
+  products: ["PRODUCT_VIEW", "ROLE_SYSTEM_ADMIN"],
   employees: ["EMPLOYEE_VIEW", "ROLE_SYSTEM_ADMIN"],
   departments: ["DEPARTMENT_VIEW", "ROLE_SYSTEM_ADMIN"],
   accounts: ["ROLE_SYSTEM_ADMIN"],
   roles: ["ROLE_SYSTEM_ADMIN"],
   permissions: ["ROLE_SYSTEM_ADMIN"],
+  notifications: [],
   settings: [],
 };
 
 export const resourceActionAuthorities: Partial<
   Record<ResourceKey, { create: string[]; edit: string[]; delete: string[] }>
 > = {
+  orders: {
+    create: ["ORDER_CREATE", "ROLE_SYSTEM_ADMIN"],
+    edit: [
+      "ORDER_CREATE",
+      "ORDER_REVIEW",
+      "ORDER_PRODUCTION",
+      "ORDER_SHIPPING",
+      "ORDER_SETTLE",
+      "ORDER_COMPLETE",
+      "ROLE_SYSTEM_ADMIN",
+    ],
+    delete: ["ORDER_DELETE", "ROLE_SYSTEM_ADMIN"],
+  },
   employees: {
     create: ["EMPLOYEE_CREATE", "ROLE_SYSTEM_ADMIN"],
     edit: ["EMPLOYEE_EDIT", "ROLE_SYSTEM_ADMIN"],
     delete: ["EMPLOYEE_DELETE", "ROLE_SYSTEM_ADMIN"],
+  },
+  customers: {
+    create: ["CUSTOMER_CREATE", "ROLE_SYSTEM_ADMIN"],
+    edit: ["CUSTOMER_EDIT", "ROLE_SYSTEM_ADMIN"],
+    delete: ["CUSTOMER_DELETE", "ROLE_SYSTEM_ADMIN"],
+  },
+  products: {
+    create: ["PRODUCT_CREATE", "ROLE_SYSTEM_ADMIN"],
+    edit: ["PRODUCT_EDIT", "ROLE_SYSTEM_ADMIN"],
+    delete: ["PRODUCT_DELETE", "ROLE_SYSTEM_ADMIN"],
   },
   departments: {
     create: ["DEPARTMENT_CREATE", "ROLE_SYSTEM_ADMIN"],

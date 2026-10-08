@@ -1,6 +1,8 @@
 package com.hcerp.erp.employee;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +25,7 @@ import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.Enums.GenderType;
 import com.hcerp.erp.common.Enums.MarriedStatus;
 import com.hcerp.erp.common.NotFoundException;
+import com.hcerp.erp.department.DepartmentRepository;
 import com.hcerp.erp.security.ErpUserDetails;
 
 import jakarta.validation.Valid;
@@ -36,10 +39,13 @@ import jakarta.validation.constraints.Size;
 public class EmployeeController {
     private final EmployeeRepository employees;
     private final EmergencyContactRepository emergencyContacts;
+    private final DepartmentRepository departments;
 
-    public EmployeeController(EmployeeRepository employees, EmergencyContactRepository emergencyContacts) {
+    public EmployeeController(EmployeeRepository employees, EmergencyContactRepository emergencyContacts,
+            DepartmentRepository departments) {
         this.employees = employees;
         this.emergencyContacts = emergencyContacts;
+        this.departments = departments;
     }
 
     @GetMapping
@@ -53,6 +59,38 @@ public class EmployeeController {
         return employeeRows.stream()
                 .map(employee -> toResponse(employee, contactByEmployeeId.get(employee.id)))
                 .toList();
+    }
+
+    @GetMapping("/summary")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasRole('SYSTEM_ADMIN')")
+    public EmployeeSummary summary() {
+        LocalDate today = LocalDate.now();
+        LocalDate monthStart = YearMonth.from(today).atDay(1);
+        LocalDate monthEnd = YearMonth.from(today).atEndOfMonth();
+        List<Employee> employeeRows = employees.findAll();
+        Map<UUID, String> departmentNames = departments.findAll().stream()
+                .collect(Collectors.toMap(department -> department.id, department -> department.name));
+        Map<String, Long> activeEmployeesByDepartment = employeeRows.stream()
+                .filter(employee -> employee.status == EmployeeStatus.ACTIVE)
+                .collect(Collectors.groupingBy(
+                        employee -> departmentNames.getOrDefault(employee.departmentId, "未分配部门"),
+                        Collectors.counting()));
+        List<DepartmentEmployeeCount> departmentCounts = activeEmployeesByDepartment.entrySet().stream()
+                .map(entry -> new DepartmentEmployeeCount(entry.getKey(), entry.getValue()))
+                .sorted(Comparator.comparing(DepartmentEmployeeCount::employeeCount).reversed()
+                        .thenComparing(DepartmentEmployeeCount::departmentName))
+                .toList();
+        long hiresThisMonth = employeeRows.stream()
+                .filter(employee -> isInCurrentMonth(employee.hireDate, monthStart, monthEnd))
+                .count();
+        long terminationsThisMonth = employeeRows.stream()
+                .filter(employee -> isInCurrentMonth(employee.terminationDate, monthStart, monthEnd))
+                .count();
+        return new EmployeeSummary(
+                employeeRows.stream().filter(employee -> employee.status == EmployeeStatus.ACTIVE).count(),
+                hiresThisMonth,
+                terminationsThisMonth,
+                departmentCounts);
     }
 
     @PostMapping
@@ -159,6 +197,10 @@ public class EmployeeController {
                         contact.relation));
     }
 
+    private static boolean isInCurrentMonth(LocalDate date, LocalDate monthStart, LocalDate monthEnd) {
+        return date != null && !date.isBefore(monthStart) && !date.isAfter(monthEnd);
+    }
+
     public record EmployeeRequest(
             @NotBlank String employeeNo,
             @NotBlank String fullName,
@@ -219,5 +261,15 @@ public class EmployeeController {
             String fullName,
             String phone,
             String relation) {
+    }
+
+    public record EmployeeSummary(
+            long activeEmployees,
+            long hiresThisMonth,
+            long terminationsThisMonth,
+            List<DepartmentEmployeeCount> departmentCounts) {
+    }
+
+    public record DepartmentEmployeeCount(String departmentName, long employeeCount) {
     }
 }

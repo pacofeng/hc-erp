@@ -4,9 +4,11 @@ import dayjs from "dayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import {
   Autocomplete,
+  Alert,
   Box,
   Button,
   Checkbox,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -14,6 +16,7 @@ import {
   Divider,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
   ListItemText,
   MenuItem,
@@ -31,11 +34,14 @@ import {
   type GridColDef,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import { zhCN } from "@mui/x-data-grid/locales";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SearchIcon from "@mui/icons-material/Search";
 import SaveIcon from "@mui/icons-material/Save";
 import {
   IMAGE_UPLOAD_ACCEPT,
@@ -46,6 +52,7 @@ import {
 } from "../../app/constants";
 import { api } from "../../app/apiClient";
 import { canUseResourceAction } from "../../app/resources";
+import { useTableColumnPreferences } from "../../app/useTableColumnPreferences";
 import {
   employeeFormSections,
   employeeTableColumns,
@@ -65,6 +72,9 @@ import type {
   SortState,
 } from "../../app/types";
 import { PasswordTextField } from "../../components/AppChrome";
+import { RowActionMenu } from "../../components/RowActionMenu";
+import { TableColumnMenu } from "../../components/TableColumnMenu";
+import { TableColumnManager } from "../../components/TableColumnManager";
 import { chinaAddressDivisions } from "../../chinaAddressData";
 
 export function ResourcePanel({
@@ -86,6 +96,7 @@ export function ResourcePanel({
     accounts: [],
   });
   const [editing, setEditing] = useState<AnyRow | null>(null);
+  const [viewing, setViewing] = useState<AnyRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AnyRow | null>(null);
   const [sort, setSort] = useState<SortState>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -94,6 +105,10 @@ export function ResourcePanel({
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [dashboardFilters, setDashboardFilters] = useState(() => new URLSearchParams(window.location.search));
+  const [columnManagerOpen, setColumnManagerOpen] = useState(false);
+  const { columnVisibilityModel, columnOrder, onColumnVisibilityModelChange, onColumnOrderChange, orderColumns } = useTableColumnPreferences(resource, session);
   const actions = useMemo(
     () => ({
       create: canUseResourceAction(resource, "create", session),
@@ -161,9 +176,19 @@ export function ResourcePanel({
               !(resource === "accounts" && column === "avatar"),
           )
           .slice(0, 9);
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return rows.filter(row => {
+      const matchesDashboardFilters = resource !== "employees" || matchesEmployeeDashboardFilters(row, dashboardFilters, references.departments);
+      const matchesSearch = Object.entries(row)
+      .filter(([key]) => !["id", "passwordHash"].includes(key))
+      .some(([, value]) => String(value ?? "").toLocaleLowerCase().includes(query));
+      return matchesDashboardFilters && matchesSearch;
+    });
+  }, [rows, search, resource, dashboardFilters, references.departments]);
   const sortedRows = useMemo(
-    () => sortRows(rows, sort, resource, references, language),
-    [rows, sort, resource, references, language],
+    () => sortRows(filteredRows, sort, resource, references, language),
+    [filteredRows, sort, resource, references, language],
   );
   const dataGridColumns = useMemo(
     () =>
@@ -177,10 +202,12 @@ export function ResourcePanel({
         t,
         actions,
         setEditing,
+        setViewing,
         setPendingDelete,
       ),
     [columns, sort, resource, references, language, t, actions],
   );
+  const orderedDataGridColumns = orderColumns(dataGridColumns);
 
   useEffect(() => {
     setSort(null);
@@ -189,6 +216,13 @@ export function ResourcePanel({
       page: 0,
     }));
   }, [resource]);
+
+  useEffect(() => {
+    setPaginationModel(current => ({
+      ...current,
+      page: Math.min(current.page, Math.max(0, Math.ceil(filteredRows.length / current.pageSize) - 1)),
+    }));
+  }, [filteredRows.length]);
 
   function setSortAndResetPage(nextSort: SortState) {
     setSort(nextSort);
@@ -202,28 +236,43 @@ export function ResourcePanel({
     setPaginationModel(nextModel);
   }
 
+  function clearDashboardFilters() {
+    setDashboardFilters(new URLSearchParams());
+    window.history.replaceState(null, "", window.location.pathname);
+    setPaginationModel(current => ({ ...current, page: 0 }));
+  }
+
+  const dashboardFilterLabel = resource === "employees" ? employeeDashboardFilterLabel(dashboardFilters) : "";
+
   return (
-    <Paper sx={{ overflow: "hidden" }}>
+    <Paper sx={{ minWidth: 0, overflow: "hidden" }}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
-        spacing={1}
+        spacing={1.5}
         sx={{ p: 2, alignItems: { sm: "center" } }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
             {t.resources[resource as keyof typeof t.resources]}
           </Typography>
-          {loading ? (
-            <Skeleton width={90} />
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              {rows.length} {t.records}
-            </Typography>
-          )}
+          <Typography variant="body2" color="text.secondary">
+            {filteredRows.length} {t.records}
+          </Typography>
+          {dashboardFilterLabel && <Chip size="small" label={dashboardFilterLabel} onDelete={clearDashboardFilters} sx={{ mt: 0.75 }} />}
         </Box>
+        <TextField
+          size="small"
+          label={`搜索${t.resources[resource as keyof typeof t.resources]}`}
+          value={search}
+          onChange={event => {
+            setSearch(event.target.value);
+            setPaginationModel(current => ({ ...current, page: 0 }));
+          }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
+        />
         <Tooltip title={t.refresh}>
           <span>
-            <IconButton onClick={load} disabled={loading}>
+            <IconButton aria-label={t.refresh} onClick={load} disabled={loading}>
               <RefreshIcon />
             </IconButton>
           </span>
@@ -238,31 +287,36 @@ export function ResourcePanel({
           </Button>
         )}
       </Stack>
-      <Divider />
       {error && (
-        <Typography color="error" sx={{ px: 2, py: 1 }}>
-          {error}
-        </Typography>
+        <Alert severity="error" action={<Button color="inherit" onClick={() => void load()}>重试</Button>}>{error}</Alert>
       )}
-      <Box sx={{ height: "calc(100vh - 238px)", minHeight: 420 }}>
+      <Box sx={{ height: "calc(100vh - 250px)", minHeight: 420 }}>
         <DataGrid
           rows={sortedRows}
-          columns={dataGridColumns}
+          columns={orderedDataGridColumns}
+          slots={{ columnMenu: props => <TableColumnMenu {...props} onOpenColumnManager={() => setColumnManagerOpen(true)} /> }}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={onColumnVisibilityModelChange}
           loading={loading}
           disableRowSelectionOnClick
           paginationModel={paginationModel}
           onPaginationModelChange={updatePaginationModel}
           pageSizeOptions={pageSizeOptions}
           getRowId={(row: AnyRow) => String(row.id)}
+          localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
+          slotProps={{ loadingOverlay: { variant: "skeleton", noRowsVariant: "skeleton" } }}
           sx={{
             border: 0,
-            "& .MuiDataGrid-columnHeaderTitle": { fontWeight: 700 },
+            "& .MuiDataGrid-columnHeaderTitle": { fontWeight: 400 },
             "& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus": {
               outline: "none",
             },
           }}
         />
       </Box>
+      <TableColumnManager open={columnManagerOpen} onClose={() => setColumnManagerOpen(false)} columns={dataGridColumns} columnOrder={columnOrder}
+        columnVisibilityModel={columnVisibilityModel} onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+        onColumnOrderChange={onColumnOrderChange} />
       {editing && (
         <EditDialog
           resource={resource}
@@ -276,6 +330,19 @@ export function ResourcePanel({
             setEditing(null);
             void load();
           }}
+        />
+      )}
+      {viewing && (
+        <EditDialog
+          resource={resource}
+          schema={schema}
+          row={viewing}
+          session={session}
+          t={t}
+          references={references}
+          readOnly
+          onClose={() => setViewing(null)}
+          onSaved={() => undefined}
         />
       )}
       {pendingDelete && (
@@ -330,6 +397,7 @@ function EditDialog({
   session,
   t,
   references,
+  readOnly = false,
   onClose,
   onSaved,
 }: {
@@ -339,6 +407,7 @@ function EditDialog({
   session: Session;
   t: Translation;
   references: ReferenceData;
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -354,6 +423,7 @@ function EditDialog({
         : undefined;
 
   async function save() {
+    if (readOnly) return;
     setError("");
     const missingFields = schema.fields.filter((field) =>
       field.required &&
@@ -418,7 +488,7 @@ function EditDialog({
       maxWidth={resource === "employees" || assignmentType ? "md" : "sm"}
       fullWidth
     >
-      <DialogTitle>{dialogTitle(resource, row.id, t)}</DialogTitle>
+      <DialogTitle>{readOnly ? `${t.view} ${t.resources[resource as keyof typeof t.resources]}` : dialogTitle(resource, row.id, t)}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {resource === "employees" ? (
@@ -431,6 +501,7 @@ function EditDialog({
               references={references}
               currentRowId={row.id}
               columns={3}
+              readOnly={readOnly}
             />
           ) : (
             schema.fields.map((field) =>
@@ -442,6 +513,8 @@ function EditDialog({
                 t,
                 references,
                 row.id,
+                undefined,
+                readOnly,
               ),
             )
           )}
@@ -450,7 +523,7 @@ function EditDialog({
               {error}
             </Typography>
           )}
-          {assignmentType && (
+          {!readOnly && assignmentType && (
             <AssignmentSection
               type={assignmentType}
               row={row}
@@ -462,10 +535,10 @@ function EditDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t.cancel}</Button>
-        <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
+        <Button onClick={onClose}>{readOnly ? t.close : t.cancel}</Button>
+        {!readOnly && <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
           {t.save}
-        </Button>
+        </Button>}
       </DialogActions>
     </Dialog>
   );
@@ -491,6 +564,7 @@ export function FormSections({
   currentRowId,
   language = "zh-CN",
   columns = 2,
+  readOnly = false,
 }: {
   sections: readonly FormSection[];
   fields: Field[];
@@ -501,6 +575,7 @@ export function FormSections({
   currentRowId?: string;
   language?: Language;
   columns?: 2 | 3;
+  readOnly?: boolean;
 }) {
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
 
@@ -548,6 +623,7 @@ export function FormSections({
                     references,
                     currentRowId,
                     language,
+                    readOnly,
                   )}
                 </Box>
               );
@@ -860,9 +936,12 @@ function renderField(
   references: ReferenceData,
   currentRowId?: string,
   language: Language = "zh-CN",
+  readOnly = false,
 ) {
   const optionLabels: Record<string, string> =
-    field.name === "gender"
+    field.name === "moduleCode"
+      ? t.moduleLabels
+      : field.name === "gender"
       ? t.genderLabels
       : field.name === "marriedStatus"
         ? t.marriedStatusLabels
@@ -873,6 +952,10 @@ function renderField(
             : field.name === "status" && resource === "accounts"
               ? t.accountStatusLabels
               : {};
+  if (readOnly) {
+    return renderReadOnlyField(resource, field, form, t, references, language, optionLabels);
+  }
+
   if (field.readOnly) {
     const value = getFieldValue(form, field.name);
     const display = isDateColumn(field.name)
@@ -1098,6 +1181,71 @@ function renderField(
   );
 }
 
+function renderReadOnlyField(
+  resource: string,
+  field: Field,
+  form: AnyRow,
+  t: Translation,
+  references: ReferenceData,
+  language: Language,
+  optionLabels: Record<string, string>,
+) {
+  const value = getFieldValue(form, field.name);
+  const display = isDateColumn(field.name)
+    ? formatDateValue(value, field.name, language)
+    : optionLabels[String(value ?? "")] ?? readOnlyDisplayValue(resource, field.name, value, references);
+
+  if (isImageUploadField(field.name) && isValidImageDataUrl(value)) {
+    return (
+      <Box key={field.name}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          {formFieldLabel(resource, t, field.name)}
+        </Typography>
+        <Box
+          component="img"
+          src={String(value)}
+          alt={formFieldLabel(resource, t, field.name)}
+          sx={{ width: 96, height: 96, borderRadius: 1, objectFit: "cover" }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <TextField
+      key={field.name}
+      fullWidth
+      label={formFieldLabel(resource, t, field.name)}
+      value={display}
+      multiline={field.multiline}
+      minRows={field.multiline ? 2 : undefined}
+      slotProps={{ input: { readOnly: true } }}
+    />
+  );
+}
+
+function readOnlyDisplayValue(
+  resource: string,
+  fieldName: string,
+  value: unknown,
+  references: ReferenceData,
+) {
+  if (resource === "employees" && fieldName === "departmentId") {
+    const department = references.departments.find(item => item.id === value);
+    return department ? departmentName(department) : String(value ?? "");
+  }
+  if ((resource === "employees" || resource === "departments") && fieldName === "managerId") {
+    const employee = references.employees.find(item => item.id === value);
+    return employee ? employeeName(employee) : String(value ?? "");
+  }
+  if (resource === "accounts" && fieldName === "employeeId") {
+    const employee = references.employees.find(item => item.id === value);
+    return employee ? accountEmployeeName(employee) : String(value ?? "");
+  }
+  if (fieldName === "mustChangePassword") return value === true || value === "true" ? "是" : "否";
+  return String(value ?? "");
+}
+
 function renderImageUploadField(
   field: Field,
   form: AnyRow,
@@ -1277,6 +1425,10 @@ function displayValue(
   references: ReferenceData,
   language: Language,
 ) {
+  if (column === "moduleCode") {
+    const labels: Record<string, string> = messages.moduleLabels;
+    return labels[String(value ?? "")] ?? String(value ?? "");
+  }
   if (resource === "accounts" && column === "securityQuestionsConfigured") {
     const labels: Record<string, string> = messages.securityQuestionsConfiguredLabels;
     return labels[String(value ?? "")] ?? String(value ?? "");
@@ -1324,12 +1476,15 @@ function buildGridColumns(
   t: Translation,
   actions: { edit: boolean; delete: boolean },
   setEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
+  setViewing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
   setPendingDelete: React.Dispatch<React.SetStateAction<AnyRow | null>>,
 ): GridColDef[] {
   const dataColumns = [
     ...columns.map((column): GridColDef => {
       const sortRule = sort?.column === column ? sort : undefined;
-      const headerLabel = fieldLabel(t, column);
+      const headerLabel = resource === "departments" && column === "managerId"
+        ? "负责人"
+        : fieldLabel(t, column);
 
       return {
         field: column,
@@ -1389,8 +1544,6 @@ function buildGridColumns(
     }),
   ];
 
-  if (!actions.edit && !actions.delete) return dataColumns;
-
   return [
     ...dataColumns,
     {
@@ -1399,38 +1552,17 @@ function buildGridColumns(
       sortable: false,
       filterable: false,
       disableColumnMenu: true,
-      width: 104,
+      width: 76,
       align: "right",
       headerAlign: "right",
       renderCell: (params: { row: AnyRow }) => (
-        <Stack
-          direction="row"
-          spacing={0.5}
-          sx={{
-            alignItems: "center",
-            justifyContent: "flex-end",
-            minHeight: "100%",
-            width: "100%",
-          }}
-        >
-          {actions.edit && (
-            <Tooltip title={t.edit}>
-              <IconButton size="small" onClick={() => setEditing(params.row)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          {actions.delete && (
-            <Tooltip title={t.delete}>
-              <IconButton
-                size="small"
-                onClick={() => setPendingDelete(params.row)}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Stack>
+        <Box sx={{ alignItems: "center", display: "flex", height: "100%", justifyContent: "flex-end", width: "100%" }}>
+          <RowActionMenu actions={[
+            { label: t.view, icon: <VisibilityIcon fontSize="small" />, onClick: () => setViewing(params.row) },
+            ...(actions.edit ? [{ label: t.edit, icon: <EditIcon fontSize="small" />, onClick: () => setEditing(params.row) }] : []),
+            ...(actions.delete ? [{ label: t.delete, icon: <DeleteIcon fontSize="small" />, color: "error" as const, onClick: () => setPendingDelete(params.row) }] : []),
+          ]} ariaLabel={t.actions} />
+        </Box>
       ),
     },
   ];
@@ -1440,6 +1572,35 @@ function toggleSortRule(sort: SortState, column: string): SortState {
   if (sort?.column !== column) return { column, direction: "asc" };
   if (sort.direction === "asc") return { column, direction: "desc" };
   return null;
+}
+
+function matchesEmployeeDashboardFilters(row: AnyRow, filters: URLSearchParams, departments: AnyRow[]) {
+  const status = filters.get("status");
+  const department = filters.get("department");
+  const departmentName = departments.find(item => String(item.id) === String(row.departmentId))?.name;
+  if (status && String(row.status ?? "") !== status) return false;
+  if (department && departmentName !== department) return false;
+  return matchesDateRange(row.hireDate, filters.get("hireDateFrom"), filters.get("hireDateTo"))
+    && matchesDateRange(row.terminationDate, filters.get("terminationDateFrom"), filters.get("terminationDateTo"));
+}
+
+function employeeDashboardFilterLabel(filters: URLSearchParams) {
+  const department = filters.get("department");
+  if (department) return `概览筛选：${department}（在职）`;
+  if (filters.get("hireDateFrom")) return "概览筛选：当月入职";
+  if (filters.get("terminationDateFrom")) return "概览筛选：当月离职";
+  if (filters.get("status")) return `概览筛选：${employeeStatusLabel(filters.get("status"))}`;
+  return "";
+}
+
+function employeeStatusLabel(status: string | null) {
+  return status === "ACTIVE" ? "在职" : status === "TERMINATED" ? "已离职" : String(status ?? "");
+}
+
+function matchesDateRange(value: unknown, from: string | null, to: string | null) {
+  if (!from && !to) return true;
+  const date = String(value ?? "");
+  return Boolean(date) && (!from || date >= from) && (!to || date <= to);
 }
 
 function sortRows(
@@ -1603,6 +1764,7 @@ function fieldLabel(t: Translation, key: string) {
 }
 
 function formFieldLabel(resource: string, t: Translation, key: string) {
+  if (resource === "departments" && key === "managerId") return "负责人";
   if (resource === "employees" && key.startsWith("emergencyContact.")) {
     return fieldLabel(t, key.replace("emergencyContact.", ""));
   }

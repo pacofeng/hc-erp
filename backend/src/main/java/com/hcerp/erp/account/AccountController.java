@@ -22,6 +22,9 @@ import com.hcerp.erp.common.Enums.AccountType;
 import com.hcerp.erp.common.Enums.EmployeeStatus;
 import com.hcerp.erp.common.NotFoundException;
 import com.hcerp.erp.employee.EmployeeRepository;
+import com.hcerp.erp.notification.AppNotification;
+import com.hcerp.erp.notification.NotificationPushPublisher;
+import com.hcerp.erp.notification.NotificationRepository;
 import com.hcerp.erp.security.ErpUserDetails;
 
 import jakarta.validation.Valid;
@@ -36,11 +39,16 @@ public class AccountController {
     private final AccountRepository accounts;
     private final EmployeeRepository employees;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationRepository notifications;
+    private final NotificationPushPublisher notificationPushes;
 
-    public AccountController(AccountRepository accounts, EmployeeRepository employees, PasswordEncoder passwordEncoder) {
+    public AccountController(AccountRepository accounts, EmployeeRepository employees, PasswordEncoder passwordEncoder,
+            NotificationRepository notifications, NotificationPushPublisher notificationPushes) {
         this.accounts = accounts;
         this.employees = employees;
         this.passwordEncoder = passwordEncoder;
+        this.notifications = notifications;
+        this.notificationPushes = notificationPushes;
     }
 
     @GetMapping
@@ -50,6 +58,7 @@ public class AccountController {
     }
 
     @PostMapping
+    @Transactional
     @PreAuthorize("hasAuthority('ACCOUNT_CREATE') or hasRole('SYSTEM_ADMIN')")
     public AccountView create(@Valid @RequestBody AccountRequest request) {
         if (request.password() == null || request.password().isBlank()) {
@@ -68,7 +77,14 @@ public class AccountController {
         account.mustChangePassword = true;
         account.passwordHash = passwordEncoder.encode(request.password());
         account.passwordChangedAt = OffsetDateTime.now();
-        return AccountView.from(accounts.save(account));
+        Account saved = accounts.save(account);
+        AppNotification notification = new AppNotification();
+        notification.accountId = saved.id;
+        notification.title = "欢迎使用恒昌 ERP";
+        notification.content = "您好，" + saved.username + "，欢迎使用恒昌 ERP。";
+        notification.type = "WELCOME";
+        notificationPushes.publishAfterCommit(notifications.save(notification));
+        return AccountView.from(saved);
     }
 
     @PutMapping("/{id}")

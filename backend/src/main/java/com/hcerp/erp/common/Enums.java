@@ -11,5 +11,5 @@ public final class Enums {
     public enum AccountType { USER, SYSTEM }
     public enum RoleStatus { ACTIVE, INACTIVE }
     public enum DepartmentStatus { ACTIVE, INACTIVE }
-    public enum ModuleCode { EMPLOYEE, ACCOUNT, DEPARTMENT }
+    public enum ModuleCode { EMPLOYEE, ACCOUNT, DEPARTMENT, ORDER, CUSTOMER, PRODUCT }
 }

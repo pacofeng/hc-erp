@@ -8,6 +8,8 @@ import {
   Paper,
   Skeleton,
   Stack,
+  Tab,
+  Tabs,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -28,6 +30,14 @@ import {
   validatePhoneFields,
 } from "../resources/ResourcePanel";
 
+type SettingsTab = "account" | "personal" | "employment";
+
+const tabSectionKeys: Record<SettingsTab, string[]> = {
+  account: ["accountInfo"],
+  personal: ["personalInfo", "addressInfo", "emergencyContact"],
+  employment: ["employmentInfo"],
+};
+
 export function SettingsPanel({
   session,
   language,
@@ -42,6 +52,7 @@ export function SettingsPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("account");
 
   async function load() {
     setError("");
@@ -140,6 +151,16 @@ export function SettingsPanel({
         </Button>
       </Stack>
       <Divider />
+      <Tabs
+        value={activeTab}
+        onChange={(_, value: SettingsTab) => setActiveTab(value)}
+        aria-label="设置资料分类"
+        sx={{ px: 2, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab value="account" label="账号信息" />
+        <Tab value="personal" label="个人信息" />
+        <Tab value="employment" label="雇佣信息" />
+      </Tabs>
       <Box sx={{ p: 2 }}>
         {loading ? (
           <Stack spacing={2}>
@@ -150,7 +171,9 @@ export function SettingsPanel({
         ) : (
           <Stack spacing={2}>
             <FormSections
-              sections={settingsFormSections}
+              sections={settingsFormSections.filter((section) =>
+                tabSectionKeys[activeTab].includes(section.titleKey),
+              )}
               fields={settingsFields}
               form={form}
               setForm={setForm}

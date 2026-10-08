@@ -4,6 +4,8 @@ A complete ERP identity and HR foundation module built from the provided Postgre
 
 See the [Functional Specification](docs/FUNCTIONAL_SPECIFICATION.md) for the implemented UI flows, REST APIs, permissions, validation rules, and database design.
 
+订单模块的模板字段、接口和权限见 [订单管理说明](docs/ORDER_MANAGEMENT.md)。
+
 ## Stack
 
 - Backend: Java 21, Spring Boot 4, Spring Security, JWT, Spring Data JPA, Flyway

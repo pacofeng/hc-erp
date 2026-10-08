@@ -31,5 +31,6 @@ export type Field = {
   required?: boolean;
   readOnly?: boolean;
   type?: "text" | "date" | "password";
+  multiline?: boolean;
   options?: string[];
 };

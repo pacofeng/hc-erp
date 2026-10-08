@@ -26,6 +26,7 @@ export const RESOURCE_STORAGE_KEY = "hcerp-resource";
 export const POST_LOGIN_RESOURCE_KEY = "hcerp-post-login-resource";
 export const AUTH_EXPIRED_EVENT = "hcerp-auth-expired";
 export const USER_ACTIVITY_EVENT = "hcerp-user-activity";
+export const NOTIFICATIONS_CHANGED_EVENT = "hcerp-notifications-changed";
 export const LOGIN_PATH = "/login";
 export const SECURITY_QUESTIONS_PATH = "/security-questions";
 
