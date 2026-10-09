@@ -3,7 +3,7 @@ export type AnyRow = Record<string, unknown> & { id?: string };
 export type Language = "zh-CN";
 
 export type Session = {
-  token: string;
+  accountId: string;
   username: string;
   authorities: string[];
   language?: Language;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ToastHost } from "./toast";
+import { api, clearCsrfToken } from "./apiClient";
 import {
   Button,
   CssBaseline,
@@ -34,10 +35,8 @@ import {
 import type { Session } from "./types";
 
 export function App() {
-  const [session, setSession] = useState<Session | null>(() => {
-    const raw = localStorage.getItem("hcerp-session");
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [routeVersion, setRouteVersion] = useState(0);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(
@@ -92,7 +91,6 @@ export function App() {
   function saveSession(next: Session | null) {
     setSession(next);
     if (next) {
-      localStorage.setItem("hcerp-session", JSON.stringify(next));
       sessionStorage.removeItem(POST_LOGIN_RESOURCE_KEY);
       localStorage.setItem(RESOURCE_STORAGE_KEY, "dashboard");
       navigate(
@@ -102,18 +100,39 @@ export function App() {
         true,
       );
     } else {
-      localStorage.removeItem("hcerp-session");
       navigate(LOGIN_PATH, true);
     }
   }
 
   function updateSession(next: Session) {
     setSession(next);
-    localStorage.setItem("hcerp-session", JSON.stringify(next));
     if (next.securityQuestionsConfigured) {
       navigate(resourcePath("dashboard"), true);
     }
   }
+
+  async function logout() {
+    const currentSession = session;
+    saveSession(null);
+    try {
+      if (currentSession) {
+        await api("/auth/logout", currentSession, { method: "POST" });
+      }
+    } catch {
+      // Client logout must still complete if a session has already expired.
+    } finally {
+      clearCsrfToken();
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    api<Session | undefined>("/auth/session")
+      .then(next => { if (active && next) setSession(next); })
+      .catch(() => undefined)
+      .finally(() => { if (active) setAuthChecked(true); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     function handlePopState() {
@@ -174,7 +193,7 @@ export function App() {
       clearInactivityTimers();
       setShowInactivityWarning(false);
       setInactivityCountdown(INACTIVITY_WARNING_SECONDS);
-      saveSession(null);
+      void logout();
     }
 
     function showInactivityModal() {
@@ -221,6 +240,7 @@ export function App() {
   }, [session]);
 
   useEffect(() => {
+    if (!authChecked) return;
     if (!session) {
       const requestedResource = getResourceFromPath();
       if (requestedResource)
@@ -244,13 +264,13 @@ export function App() {
     if (window.location.pathname === LOGIN_PATH || !getResourceFromPath()) {
       navigate(resourcePath(getStoredResource()), true);
     }
-  }, [session, routeVersion]);
+  }, [authChecked, session, routeVersion]);
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ToastHost />
-      {session ? (
+      {!authChecked ? null : session ? (
         !session.securityQuestionsConfigured ? (
           <SecurityQuestionSetup
             session={session}
@@ -258,7 +278,7 @@ export function App() {
             onSaved={() =>
               updateSession({ ...session, securityQuestionsConfigured: true })
             }
-            onLogout={() => saveSession(null)}
+            onLogout={() => void logout()}
           />
         ) : (
           <>
@@ -266,7 +286,7 @@ export function App() {
               session={session}
               language={language}
               t={t}
-              onLogout={() => saveSession(null)}
+              onLogout={() => void logout()}
             />
             <Dialog open={showInactivityWarning} maxWidth="xs" fullWidth>
               <DialogTitle>{t.inactivityWarningTitle}</DialogTitle>
@@ -282,7 +302,7 @@ export function App() {
                 </Typography>
               </DialogContent>
               <DialogActions>
-                <Button onClick={() => saveSession(null)}>{t.signOut}</Button>
+                <Button onClick={() => void logout()}>{t.signOut}</Button>
                 <Button
                   variant="contained"
                   onClick={() =>

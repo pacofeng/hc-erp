@@ -7,8 +7,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,11 +22,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hcerp.erp.account.AccountRepository;
-import com.hcerp.erp.common.NotFoundException;
+import com.hcerp.erp.common.Enums.AccountStatus;
+import com.hcerp.erp.security.AuthenticationCookieService;
 import com.hcerp.erp.security.ErpUserDetails;
 import com.hcerp.erp.security.JwtService;
+import com.hcerp.erp.security.LoginProtectionService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -35,31 +43,59 @@ public class AuthController {
     private final AccountRepository accounts;
     private final PasswordEncoder passwordEncoder;
     private final SecurityQuestionService securityQuestionService;
+    private final AuthenticationCookieService authenticationCookieService;
+    private final LoginProtectionService loginProtection;
 
     public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, AccountRepository accounts,
-                          PasswordEncoder passwordEncoder, SecurityQuestionService securityQuestionService) {
+                          PasswordEncoder passwordEncoder, SecurityQuestionService securityQuestionService,
+                          AuthenticationCookieService authenticationCookieService, LoginProtectionService loginProtection) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.accounts = accounts;
         this.passwordEncoder = passwordEncoder;
         this.securityQuestionService = securityQuestionService;
+        this.authenticationCookieService = authenticationCookieService;
+        this.loginProtection = loginProtection;
     }
 
     @PostMapping("/login")
-    public Map<String, Object> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
-        var auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+    public Map<String, Object> login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest,
+                                     HttpServletResponse servletResponse) {
+        String clientIp = clientIp(servletRequest);
+        loginProtection.check("login", request.username(), clientIp);
+        unlockIfExpired(request.username());
+        var auth = authenticate(request, clientIp);
         ErpUserDetails user = (ErpUserDetails) auth.getPrincipal();
         var account = user.account();
         account.lastLoginAt = OffsetDateTime.now();
         account.lastLoginIp = servletRequest.getRemoteAddr();
         account.failedLoginCount = 0;
         accounts.save(account);
-        return sessionResponse(user);
+        return sessionResponse(user, servletResponse);
+    }
+
+    @GetMapping("/csrf")
+    public Map<String, String> csrf(CsrfToken csrfToken) {
+        return Map.of("token", csrfToken.getToken());
+    }
+
+    @PostMapping("/logout")
+    public void logout(HttpServletResponse servletResponse) {
+        authenticationCookieService.clear(servletResponse);
     }
 
     @GetMapping("/me")
     public Map<String, Object> me(@AuthenticationPrincipal ErpUserDetails user) {
+        return sessionPayload(user);
+    }
+
+    @GetMapping("/session")
+    public ResponseEntity<Map<String, Object>> session(@AuthenticationPrincipal ErpUserDetails user) {
+        if (user == null) return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(sessionPayload(user));
+    }
+
+    private Map<String, Object> sessionPayload(ErpUserDetails user) {
         return Map.of(
                 "accountId", user.accountId(),
                 "username", user.getUsername(),
@@ -72,7 +108,8 @@ public class AuthController {
 
     @PutMapping("/change-password")
     public Map<String, Object> changePassword(@AuthenticationPrincipal ErpUserDetails user,
-                                              @Valid @RequestBody ChangePasswordRequest request) {
+                                              @Valid @RequestBody ChangePasswordRequest request,
+                                              HttpServletResponse servletResponse) {
         validatePasswordStrength(request.newPassword(), request.confirmPassword());
         var account = user.account();
         account.passwordHash = passwordEncoder.encode(request.newPassword());
@@ -80,7 +117,7 @@ public class AuthController {
         account.passwordVersion = account.passwordVersion == null ? 1 : account.passwordVersion + 1;
         account.mustChangePassword = false;
         accounts.save(account);
-        return sessionResponse(user);
+        return sessionResponse(user, servletResponse);
     }
 
     @PutMapping("/language")
@@ -130,11 +167,13 @@ public class AuthController {
 
     @PostMapping("/forgot-password/questions")
     public ForgotPasswordQuestionsResponse forgotPasswordQuestions(
-            @Valid @RequestBody ForgotPasswordQuestionsRequest request) {
+            @Valid @RequestBody ForgotPasswordQuestionsRequest request, HttpServletRequest servletRequest) {
+        String clientIp = clientIp(servletRequest);
+        loginProtection.check("forgot-password", request.username(), clientIp);
         var account = accounts.findByUsername(request.username())
-                .orElseThrow(() -> new NotFoundException("Account not found"));
+                .orElseThrow(() -> failedForgotPassword(request.username(), clientIp));
         if (!Boolean.TRUE.equals(account.securityQuestionsConfigured)) {
-            throw new IllegalArgumentException("Security questions are not configured for this account");
+            throw failedForgotPassword(request.username(), clientIp);
         }
         int questionIndex = ThreadLocalRandom.current().nextInt(3);
         String question = switch (questionIndex) {
@@ -147,11 +186,13 @@ public class AuthController {
 
     @PostMapping("/forgot-password/verify")
     public Map<String, Object> verifyForgotPasswordAnswers(
-            @Valid @RequestBody ForgotPasswordVerifyRequest request) {
+            @Valid @RequestBody ForgotPasswordVerifyRequest request, HttpServletRequest servletRequest) {
+        String clientIp = clientIp(servletRequest);
+        loginProtection.check("forgot-password", request.username(), clientIp);
         var account = accounts.findByUsername(request.username())
-                .orElseThrow(() -> new NotFoundException("Account not found"));
+                .orElseThrow(() -> failedForgotPassword(request.username(), clientIp));
         if (!Boolean.TRUE.equals(account.securityQuestionsConfigured)) {
-            throw new IllegalArgumentException("Security questions are not configured for this account");
+            throw failedForgotPassword(request.username(), clientIp);
         }
         String expectedAnswerHash = switch (request.questionIndex()) {
             case 0 -> account.securityAnswerHash1;
@@ -160,7 +201,7 @@ public class AuthController {
             default -> throw new IllegalArgumentException("Unsupported security question");
         };
         if (!securityQuestionService.matchesAnswer(request.answer(), expectedAnswerHash)) {
-            throw new IllegalArgumentException("Security answers are incorrect");
+            throw failedForgotPassword(request.username(), clientIp);
         }
         String resetToken = securityQuestionService.createResetToken(account);
         accounts.save(account);
@@ -168,12 +209,15 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password/reset")
-    public Map<String, Object> resetForgottenPassword(@Valid @RequestBody ForgotPasswordResetRequest request) {
+    public Map<String, Object> resetForgottenPassword(@Valid @RequestBody ForgotPasswordResetRequest request,
+                                                       HttpServletRequest servletRequest) {
+        String clientIp = clientIp(servletRequest);
+        loginProtection.check("forgot-password", request.username(), clientIp);
         validatePasswordStrength(request.newPassword(), request.confirmPassword());
         var account = accounts.findByUsername(request.username())
-                .orElseThrow(() -> new NotFoundException("Account not found"));
+                .orElseThrow(() -> failedForgotPassword(request.username(), clientIp));
         if (!securityQuestionService.matchesResetToken(account, request.resetToken())) {
-            throw new IllegalArgumentException("Reset token is invalid or expired");
+            throw failedForgotPassword(request.username(), clientIp);
         }
         account.passwordHash = passwordEncoder.encode(request.newPassword());
         account.passwordChangedAt = OffsetDateTime.now();
@@ -184,9 +228,9 @@ public class AuthController {
         return Map.of("success", true);
     }
 
-    private Map<String, Object> sessionResponse(ErpUserDetails user) {
+    private Map<String, Object> sessionResponse(ErpUserDetails user, HttpServletResponse servletResponse) {
+        authenticationCookieService.write(servletResponse, jwtService.createToken(user));
         return Map.of(
-                "token", jwtService.createToken(user),
                 "accountId", user.account().id,
                 "username", user.account().username,
                 "employeeId", user.account().employeeId == null ? "" : user.account().employeeId,
@@ -194,6 +238,51 @@ public class AuthController {
                 "mustChangePassword", Boolean.TRUE.equals(user.account().mustChangePassword),
                 "securityQuestionsConfigured", Boolean.TRUE.equals(user.account().securityQuestionsConfigured),
                 "authorities", user.getAuthorities().stream().map(Object::toString).toList());
+    }
+
+    private org.springframework.security.core.Authentication authenticate(LoginRequest request, String clientIp) {
+        try {
+            return authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+        } catch (AuthenticationException exception) {
+            recordFailedLogin(request.username(), clientIp);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名或密码错误");
+        }
+    }
+
+    private void unlockIfExpired(String username) {
+        accounts.findByUsername(username).ifPresent(account -> {
+            if (account.status == AccountStatus.LOCKED && account.lockedUntil != null
+                    && !account.lockedUntil.isAfter(OffsetDateTime.now())) {
+                account.status = AccountStatus.ACTIVE;
+                account.failedLoginCount = 0;
+                account.lockedUntil = null;
+                accounts.save(account);
+            }
+        });
+    }
+
+    private void recordFailedLogin(String username, String clientIp) {
+        loginProtection.recordFailure("login", username, clientIp);
+        accounts.findByUsername(username).ifPresent(account -> {
+            if (account.status != AccountStatus.ACTIVE) return;
+            int failedAttempts = (account.failedLoginCount == null ? 0 : account.failedLoginCount) + 1;
+            account.failedLoginCount = failedAttempts;
+            if (failedAttempts >= 5) {
+                account.status = AccountStatus.LOCKED;
+                account.lockedUntil = OffsetDateTime.now().plusMinutes(15);
+            }
+            accounts.save(account);
+        });
+    }
+
+    private ResponseStatusException failedForgotPassword(String username, String clientIp) {
+        loginProtection.recordFailure("forgot-password", username, clientIp);
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, "账号或安全问题验证失败");
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        return request.getRemoteAddr();
     }
 
     private void validatePasswordStrength(String newPassword, String confirmPassword) {

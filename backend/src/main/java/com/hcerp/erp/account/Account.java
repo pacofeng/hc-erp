@@ -29,6 +29,7 @@ public class Account {
     @Enumerated(EnumType.STRING)
     public AccountType accountType = AccountType.USER;
     public Integer failedLoginCount = 0;
+    public OffsetDateTime lockedUntil;
     public Boolean mustChangePassword = false;
     public String preferredLanguage = "zh-CN";
     public String avatar;

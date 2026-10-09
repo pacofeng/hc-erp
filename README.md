@@ -35,4 +35,4 @@ See the [Functional Specification](docs/FUNCTIONAL_SPECIFICATION.md) for the imp
    pnpm dev
    ```
 
-Default backend configuration can be overridden with environment variables such as `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `JWT_SECRET`.
+Before starting the backend, configure `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `JWT_SECRET`. See [`backend/.env.example`](backend/.env.example) for development values and [`docs/PRODUCTION_SECURITY.md`](docs/PRODUCTION_SECURITY.md) for the production checklist.

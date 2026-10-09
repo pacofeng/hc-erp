@@ -37,7 +37,7 @@ export function useTableColumnPreferences(table: string, session: Session) {
         }
       });
     return () => controller.abort();
-  }, [session.token]);
+  }, [session.accountId]);
 
   useEffect(() => {
     if (!ready) return;

@@ -65,7 +65,7 @@ export function NotificationBell({
     async function connect() {
       try {
         const response = await fetch(`${API_BASE}/notifications/stream`, {
-          headers: { Authorization: `Bearer ${session.token}` },
+          credentials: "include",
           signal: controller.signal,
         });
         if (response.status === 401) {
@@ -102,7 +102,7 @@ export function NotificationBell({
       controller.abort();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
-  }, [session.token]);
+  }, [session.accountId]);
 
   async function markRead(notification: NotificationItem) {
     if (notification.read) return;

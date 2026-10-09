@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Box, Button, Chip, Collapse, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Skeleton, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
@@ -38,6 +38,7 @@ export function DashboardPanel({
   const [orderSummaryPeriod, setOrderSummaryPeriod] = useState<OrderSummaryPeriod>("MONTH");
   const [dashboardPanels, setDashboardPanels] = useState<DashboardPanelPreferences>({ panels: [], collapsedPanels: [] });
   const [dashboardPreferencesReady, setDashboardPreferencesReady] = useState(false);
+  const savedDashboardPreferences = useRef("");
   const [addPanelAnchor, setAddPanelAnchor] = useState<HTMLElement | null>(null);
   const [draggedPanel, setDraggedPanel] = useState<DashboardPanelKey | null>(null);
   const [dropTargetPanel, setDropTargetPanel] = useState<DashboardPanelKey | null>(null);
@@ -60,27 +61,32 @@ export function DashboardPanel({
   useEffect(() => {
     const controller = new AbortController();
     setDashboardPreferencesReady(false);
+    savedDashboardPreferences.current = "";
     api<DashboardPanelPreferences>("/dashboard/preferences", session, { signal: controller.signal })
       .then(preferences => {
-        if (!controller.signal.aborted) setDashboardPanels(preferences);
+        if (controller.signal.aborted) return;
+        setDashboardPanels(preferences);
+        savedDashboardPreferences.current = JSON.stringify(preferences);
+        setDashboardPreferencesReady(true);
       })
       .catch(error => {
         if (!controller.signal.aborted) {
           showToast(error instanceof Error ? error.message : "无法加载仪表盘配置", "error");
         }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setDashboardPreferencesReady(true);
       });
     return () => controller.abort();
-  }, [session.token]);
+  }, [session.accountId]);
 
   useEffect(() => {
     if (!dashboardPreferencesReady) return;
+    const serialized = JSON.stringify(dashboardPanels);
+    if (serialized === savedDashboardPreferences.current) return;
     const timer = window.setTimeout(() => {
       void api("/dashboard/preferences", session, {
         method: "PUT",
-        body: JSON.stringify(dashboardPanels),
+        body: serialized,
+      }).then(() => {
+        savedDashboardPreferences.current = serialized;
       }).catch(error => {
         showToast(error instanceof Error ? error.message : "无法保存仪表盘配置", "error");
       });
