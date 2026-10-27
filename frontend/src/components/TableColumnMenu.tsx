@@ -1,11 +1,34 @@
 import type { ComponentProps, MouseEvent } from "react";
 import { Divider, ListSubheader, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { GridColumnMenu } from "@mui/x-data-grid";
+import { GridColumnMenu, GridColumnMenuContainer } from "@mui/x-data-grid";
 
 type GridColumnMenuProps = ComponentProps<typeof GridColumnMenu>;
 
-export function TableColumnMenu({ onOpenColumnManager, ...props }: GridColumnMenuProps & { onOpenColumnManager: () => void }) {
+export function TableColumnMenu({
+  onOpenColumnManager,
+  onlyColumnManager = false,
+  ...props
+}: GridColumnMenuProps & {
+  onOpenColumnManager: () => void;
+  onlyColumnManager?: boolean;
+}) {
+  if (onlyColumnManager) {
+    return (
+      <GridColumnMenuContainer {...props}>
+        <MenuItem
+          onClick={event => {
+            props.hideMenu(event);
+            onOpenColumnManager();
+          }}
+        >
+          <ListItemIcon><ViewColumnIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>显示、隐藏和排序列</ListItemText>
+        </MenuItem>
+      </GridColumnMenuContainer>
+    );
+  }
+
   return <GridColumnMenu {...props}
     slots={{
       columnMenuTableSettingsItem: ({ onClick }: { onClick: (event: MouseEvent<HTMLElement>) => void }) => <>

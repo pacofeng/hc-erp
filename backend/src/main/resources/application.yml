@@ -32,3 +32,4 @@ app:
     rate-limit:
       maximum-attempts: ${AUTH_RATE_LIMIT_MAXIMUM_ATTEMPTS:10}
       window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:600}
+      cooldown-seconds: ${AUTH_RATE_LIMIT_COOLDOWN_SECONDS:300}

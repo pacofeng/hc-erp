@@ -74,7 +74,7 @@ export const newEmployeeFormSections = employeeFormSections.map((section) =>
 export const settingsFormSections = [
   {
     titleKey: "accountInfo",
-    fields: ["avatar", "username"],
+    fields: ["avatar", "username", "roleNames", "createdAt", "lastLoginAt", "passwordChangedAt"],
   },
   {
     titleKey: "personalInfo",
@@ -107,8 +107,8 @@ export const settingsFormSections = [
       "managerName",
       "jobTitle",
       "hireDate",
-      "terminationDate",
       "status",
+      "terminationDate",
     ],
   },
 ] as const;
@@ -146,8 +146,8 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   departments: {
     label: "Departments",
     fields: [
-      { name: "code", options: ["SYS", "HR"] },
       { name: "name", required: true },
+      { name: "description" },
       { name: "managerId" },
       { name: "status", options: ["ACTIVE", "INACTIVE"] },
     ],
@@ -176,10 +176,10 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
   accounts: {
     label: "Accounts",
     fields: [
-      { name: "employeeId" },
+      { name: "employeeId", required: true },
       { name: "username", required: true },
       { name: "password", type: "password", required: true },
-      { name: "status", options: ["ACTIVE", "LOCKED", "TERMINATED"] },
+      { name: "status", options: ["ACTIVE", "LOCKED", "TERMINATED", "PENDING_ACTIVATION"] },
       { name: "accountType", options: ["USER", "SYSTEM"] },
       { name: "mustChangePassword", options: ["false", "true"] },
       { name: "avatar" },
@@ -236,6 +236,10 @@ export const schemas: Record<string, { label: string; fields: Field[] }> = {
 export const settingsFields: Field[] = [
   { name: "username", readOnly: true },
   { name: "avatar" },
+  { name: "roleNames", readOnly: true },
+  { name: "createdAt", readOnly: true },
+  { name: "lastLoginAt", readOnly: true },
+  { name: "passwordChangedAt", readOnly: true },
   { name: "fullName", required: true, readOnly: true },
   { name: "idCardNumber", readOnly: true },
   { name: "gender", options: ["MALE", "FEMALE"], readOnly: true },
@@ -245,14 +249,14 @@ export const settingsFields: Field[] = [
     options: ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"],
     readOnly: true,
   },
-  { name: "phone", required: true },
-  { name: "addressProvince" },
-  { name: "addressCity" },
-  { name: "addressDistrict" },
-  { name: "address" },
-  { name: "emergencyContact.fullName", required: true },
-  { name: "emergencyContact.phone", required: true },
-  { name: "emergencyContact.relation", required: true, options: emergencyContactRelations },
+  { name: "phone", required: true, readOnly: true },
+  { name: "addressProvince", readOnly: true },
+  { name: "addressCity", readOnly: true },
+  { name: "addressDistrict", readOnly: true },
+  { name: "address", readOnly: true },
+  { name: "emergencyContact.fullName", required: true, readOnly: true },
+  { name: "emergencyContact.phone", required: true, readOnly: true },
+  { name: "emergencyContact.relation", required: true, options: emergencyContactRelations, readOnly: true },
   { name: "employeeNo", readOnly: true },
   { name: "departmentName", readOnly: true },
   { name: "managerName", readOnly: true },

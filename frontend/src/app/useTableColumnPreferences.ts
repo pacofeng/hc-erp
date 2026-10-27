@@ -9,11 +9,20 @@ type TablePreferences = {
   columnOrder: Record<string, string[]>;
 };
 
-function hiddenColumns(model: GridColumnVisibilityModel): GridColumnVisibilityModel {
-  return Object.fromEntries(Object.entries(model).filter(([, visible]) => visible === false));
+function visibilityOverrides(
+  model: GridColumnVisibilityModel,
+  defaults: GridColumnVisibilityModel,
+): GridColumnVisibilityModel {
+  return Object.fromEntries(
+    Object.entries(model).filter(([field, visible]) => visible !== defaults[field]),
+  );
 }
 
-export function useTableColumnPreferences(table: string, session: Session) {
+export function useTableColumnPreferences(
+  table: string,
+  session: Session,
+  defaultColumnVisibility: GridColumnVisibilityModel = {},
+) {
   const [preferences, setPreferences] = useState<TablePreferences>({ columnVisibility: {}, columnOrder: {} });
   const [ready, setReady] = useState(false);
   const lastSaved = useRef("");
@@ -60,7 +69,10 @@ export function useTableColumnPreferences(table: string, session: Session) {
   }, [preferences, ready, session]);
 
   return {
-    columnVisibilityModel: preferences.columnVisibility[table] ?? {},
+    columnVisibilityModel: {
+      ...defaultColumnVisibility,
+      ...(preferences.columnVisibility[table] ?? {}),
+    },
     columnOrder: preferences.columnOrder[table] ?? [],
     orderColumns: <Column extends GridColDef>(columns: Column[]) => orderColumns(columns, preferences.columnOrder[table] ?? []),
     onColumnVisibilityModelChange: (model: GridColumnVisibilityModel) => {
@@ -68,7 +80,7 @@ export function useTableColumnPreferences(table: string, session: Session) {
         ...current,
         columnVisibility: {
           ...current.columnVisibility,
-          [table]: hiddenColumns(model),
+          [table]: visibilityOverrides(model, defaultColumnVisibility),
         },
       }));
     },

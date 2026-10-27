@@ -17,8 +17,8 @@ import jakarta.persistence.Table;
 public class Department {
     @Id
     public UUID id;
-    public String code;
     public String name;
+    public String description;
     public UUID managerId;
     @Convert(converter = DepartmentStatusConverter.class)
     public DepartmentStatus status = DepartmentStatus.ACTIVE;

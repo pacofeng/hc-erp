@@ -14,6 +14,7 @@ export type ReferenceData = {
   departments: AnyRow[];
   employees: AnyRow[];
   accounts: AnyRow[];
+  roles: AnyRow[];
 };
 
 export type SortState = { column: string; direction: "asc" | "desc" } | null;

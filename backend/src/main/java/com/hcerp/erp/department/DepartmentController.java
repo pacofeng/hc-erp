@@ -20,7 +20,6 @@ import com.hcerp.erp.common.NotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 
 @RestController
 @RequestMapping("/api/departments")
@@ -40,10 +39,6 @@ public class DepartmentController {
     @PostMapping
     @PreAuthorize("hasAuthority('DEPARTMENT_CREATE') or hasRole('SYSTEM_ADMIN')")
     public Department create(@Valid @RequestBody DepartmentRequest request) {
-        String code = request.code().trim().toUpperCase();
-        if (departments.existsByCode(code)) {
-            throw new IllegalArgumentException("Department code already exists");
-        }
         Department department = new Department();
         apply(department, request);
         return departments.save(department);
@@ -53,10 +48,6 @@ public class DepartmentController {
     @PreAuthorize("hasAuthority('DEPARTMENT_EDIT') or hasRole('SYSTEM_ADMIN')")
     public Department update(@PathVariable UUID id, @Valid @RequestBody DepartmentRequest request) {
         Department department = departments.findById(id).orElseThrow(() -> new NotFoundException("Department not found"));
-        String code = request.code().trim().toUpperCase();
-        if (departments.existsByCodeAndIdNot(code, id)) {
-            throw new IllegalArgumentException("Department code already exists");
-        }
         apply(department, request);
         return departments.save(department);
     }
@@ -75,16 +66,15 @@ public class DepartmentController {
     }
 
     private void apply(Department department, DepartmentRequest request) {
-        department.code = request.code().trim().toUpperCase();
         department.name = request.name().trim();
+        department.description = request.description();
         department.managerId = request.managerId();
         department.status = request.status();
     }
 
     public record DepartmentRequest(
-            @NotBlank @Pattern(regexp = "^[A-Z_]+$", message = "Code can only contain uppercase letters and underscores")
-            String code,
             @NotBlank String name,
+            String description,
             UUID managerId,
             @NotNull DepartmentStatus status) {
     }

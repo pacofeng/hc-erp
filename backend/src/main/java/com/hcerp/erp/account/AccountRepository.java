@@ -13,6 +13,8 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     Optional<Account> findByUsername(String username);
     List<Account> findAllByOrderByUsernameAsc();
     boolean existsByUsername(String username);
+    boolean existsByEmployeeId(UUID employeeId);
+    Optional<Account> findByActivationTokenHash(String activationTokenHash);
 
     @Query(value = """
             SELECT a.id

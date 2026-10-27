@@ -29,6 +29,7 @@ export const USER_ACTIVITY_EVENT = "hcerp-user-activity";
 export const NOTIFICATIONS_CHANGED_EVENT = "hcerp-notifications-changed";
 export const LOGIN_PATH = "/login";
 export const SECURITY_QUESTIONS_PATH = "/security-questions";
+export const ACCOUNT_ACTIVATION_PATH = "/activate";
 
 export const dateOnlyColumns = new Set([
   "dateOfBirth",

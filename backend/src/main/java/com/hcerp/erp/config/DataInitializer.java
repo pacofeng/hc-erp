@@ -45,7 +45,7 @@ public class DataInitializer {
             employee.hireDate = LocalDate.now();
             employee.status = EmployeeStatus.ACTIVE;
             employee.departmentId = departments.findAll().stream()
-                    .filter(d -> "SYS".equals(d.code))
+                    .filter(d -> "系统管理".equals(d.name))
                     .findFirst()
                     .map(d -> d.id)
                     .orElse(null);

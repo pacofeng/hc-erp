@@ -1,7 +1,9 @@
 package com.hcerp.erp.settings;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hcerp.erp.account.Account;
 import com.hcerp.erp.account.AccountRepository;
+import com.hcerp.erp.assignment.AccountRoleRepository;
 import com.hcerp.erp.common.Enums.GenderType;
 import com.hcerp.erp.common.Enums.MarriedStatus;
 import com.hcerp.erp.common.Enums.EmployeeStatus;
@@ -22,11 +25,10 @@ import com.hcerp.erp.employee.EmergencyContact;
 import com.hcerp.erp.employee.EmergencyContactRepository;
 import com.hcerp.erp.employee.Employee;
 import com.hcerp.erp.employee.EmployeeRepository;
+import com.hcerp.erp.role.RoleRepository;
 import com.hcerp.erp.security.ErpUserDetails;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -37,16 +39,22 @@ public class SettingsController {
     private final EmployeeRepository employees;
     private final EmergencyContactRepository emergencyContacts;
     private final DepartmentRepository departments;
+    private final AccountRoleRepository accountRoles;
+    private final RoleRepository roles;
 
     public SettingsController(
             AccountRepository accounts,
             EmployeeRepository employees,
             EmergencyContactRepository emergencyContacts,
-            DepartmentRepository departments) {
+            DepartmentRepository departments,
+            AccountRoleRepository accountRoles,
+            RoleRepository roles) {
         this.accounts = accounts;
         this.employees = employees;
         this.emergencyContacts = emergencyContacts;
         this.departments = departments;
+        this.accountRoles = accountRoles;
+        this.roles = roles;
     }
 
     @GetMapping("/profile")
@@ -65,21 +73,9 @@ public class SettingsController {
         Account account = account(user);
         Employee employee = employee(account);
         account.avatar = request.avatar();
-        employee.phone = request.phone();
-        employee.addressProvince = request.addressProvince();
-        employee.addressCity = request.addressCity();
-        employee.addressDistrict = request.addressDistrict();
-        employee.address = request.address();
-
-        EmergencyContact contact = emergencyContacts.findByEmployeeId(employee.id).orElseGet(EmergencyContact::new);
-        contact.employeeId = employee.id;
-        contact.fullName = request.emergencyContact().fullName();
-        contact.phone = request.emergencyContact().phone();
-        contact.relation = request.emergencyContact().relation();
-
-        Employee savedEmployee = employees.save(employee);
-        EmergencyContact savedContact = emergencyContacts.save(contact);
-        return toResponse(account, savedEmployee, savedContact);
+        Account savedAccount = accounts.save(account);
+        EmergencyContact contact = emergencyContacts.findByEmployeeId(employee.id).orElse(null);
+        return toResponse(savedAccount, employee, contact);
     }
 
     private Account account(ErpUserDetails user) {
@@ -100,6 +96,10 @@ public class SettingsController {
         return new ProfileResponse(
                 account.username,
                 account.avatar,
+                accountRoleNames(account.id),
+                account.createdAt,
+                account.lastLoginAt,
+                account.passwordChangedAt,
                 employee.employeeNo,
                 employee.fullName,
                 employee.idCardNumber,
@@ -123,6 +123,16 @@ public class SettingsController {
                         contact.relation));
     }
 
+    private String accountRoleNames(UUID accountId) {
+        List<UUID> roleIds = accountRoles.findByAccountId(accountId).stream()
+                .map(link -> link.roleId)
+                .toList();
+        return roles.findAllById(roleIds).stream()
+                .map(role -> role.name)
+                .sorted()
+                .collect(Collectors.joining("、"));
+    }
+
     private String departmentName(UUID departmentId) {
         if (departmentId == null) return null;
         return departments.findById(departmentId)
@@ -140,24 +150,16 @@ public class SettingsController {
     public record ProfileRequest(
             @Size(max = 30000000, message = "Avatar must be 20MB or smaller")
             @Pattern(regexp = "^data:image/(png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$", message = "Avatar must be an uploaded image file")
-            String avatar,
-            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
-            String addressProvince,
-            String addressCity,
-            String addressDistrict,
-            String address,
-            @NotNull @Valid EmergencyContactRequest emergencyContact) {
-    }
-
-    public record EmergencyContactRequest(
-            @NotBlank String fullName,
-            @NotBlank @Pattern(regexp = "\\d{11}", message = "Phone must be 11 digits") String phone,
-            @NotBlank String relation) {
+            String avatar) {
     }
 
     public record ProfileResponse(
             String username,
             String avatar,
+            String roleNames,
+            java.time.OffsetDateTime createdAt,
+            java.time.OffsetDateTime lastLoginAt,
+            java.time.OffsetDateTime passwordChangedAt,
             String employeeNo,
             String fullName,
             String idCardNumber,

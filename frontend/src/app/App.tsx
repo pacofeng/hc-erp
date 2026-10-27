@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import {
   AUTH_EXPIRED_EVENT,
+  ACCOUNT_ACTIVATION_PATH,
   INACTIVITY_TIMEOUT_MS,
   INACTIVITY_WARNING_MS,
   INACTIVITY_WARNING_SECONDS,
@@ -23,7 +24,7 @@ import {
   SECURITY_QUESTIONS_PATH,
   USER_ACTIVITY_EVENT,
 } from "./constants";
-import { Login, SecurityQuestionSetup } from "../features/auth/AuthPages";
+import { AccountActivation, Login, SecurityQuestionSetup } from "../features/auth/AuthPages";
 import { Shell } from "../features/shell/AppShell";
 import { getPreferredLanguage, messages } from "./i18n";
 import {
@@ -245,7 +246,9 @@ export function App() {
       const requestedResource = getResourceFromPath();
       if (requestedResource)
         sessionStorage.setItem(POST_LOGIN_RESOURCE_KEY, requestedResource);
-      if (window.location.pathname !== LOGIN_PATH) navigate(LOGIN_PATH, true);
+      if (window.location.pathname !== LOGIN_PATH && window.location.pathname !== ACCOUNT_ACTIVATION_PATH) {
+        navigate(LOGIN_PATH, true);
+      }
       return;
     }
 
@@ -315,6 +318,11 @@ export function App() {
             </Dialog>
           </>
         )
+      ) : window.location.pathname === ACCOUNT_ACTIVATION_PATH ? (
+        <AccountActivation t={t} onCompleted={() => {
+          navigate(LOGIN_PATH, true);
+          setRouteVersion(version => version + 1);
+        }} />
       ) : (
         <Login
           t={t}

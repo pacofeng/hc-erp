@@ -49,6 +49,9 @@ public class Account {
     public Integer passwordVersion = 0;
     public String passwordResetTokenHash;
     public OffsetDateTime passwordResetTokenExpiresAt;
+    public String activationTokenHash;
+    public OffsetDateTime activationExpiresAt;
+    public OffsetDateTime activatedAt;
     public OffsetDateTime passwordChangedAt;
     public OffsetDateTime lastLoginAt;
     public String lastLoginIp;

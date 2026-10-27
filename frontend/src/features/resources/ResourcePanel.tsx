@@ -43,6 +43,9 @@ import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import SaveIcon from "@mui/icons-material/Save";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import {
   IMAGE_UPLOAD_ACCEPT,
   IMAGE_UPLOAD_TYPES,
@@ -94,10 +97,13 @@ export function ResourcePanel({
     departments: [],
     employees: [],
     accounts: [],
+    roles: [],
   });
   const [editing, setEditing] = useState<AnyRow | null>(null);
   const [viewing, setViewing] = useState<AnyRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AnyRow | null>(null);
+  const [pendingAccessReset, setPendingAccessReset] = useState<AnyRow | null>(null);
+  const [accessResetLink, setAccessResetLink] = useState("");
   const [sort, setSort] = useState<SortState>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -108,7 +114,15 @@ export function ResourcePanel({
   const [search, setSearch] = useState("");
   const [dashboardFilters, setDashboardFilters] = useState(() => new URLSearchParams(window.location.search));
   const [columnManagerOpen, setColumnManagerOpen] = useState(false);
-  const { columnVisibilityModel, columnOrder, onColumnVisibilityModelChange, onColumnOrderChange, orderColumns } = useTableColumnPreferences(resource, session);
+  const defaultColumnVisibility: Record<string, boolean> = resource === "accounts"
+    ? {
+        accountType: false,
+        failedLoginCount: false,
+        mustChangePassword: false,
+        securityQuestionsConfigured: false,
+      }
+    : {};
+  const { columnVisibilityModel, columnOrder, onColumnVisibilityModelChange, onColumnOrderChange, orderColumns } = useTableColumnPreferences(resource, session, defaultColumnVisibility);
   const actions = useMemo(
     () => ({
       create: canUseResourceAction(resource, "create", session),
@@ -130,15 +144,18 @@ export function ResourcePanel({
           api<AnyRow[]>("/employees", session),
           api<AnyRow[]>("/accounts", session).catch(() => [] as AnyRow[]),
         ]);
-        setReferences({ departments, employees, accounts });
+        setReferences({ departments, employees, accounts, roles: [] });
       }
       if (resource === "accounts") {
-        const employees = await api<AnyRow[]>("/employees", session);
-        setReferences({ departments: [], employees, accounts: nextRows });
+        const [employees, roles] = await Promise.all([
+          api<AnyRow[]>("/employees", session),
+          api<AnyRow[]>("/roles", session),
+        ]);
+        setReferences({ departments: [], employees, accounts: nextRows, roles });
       }
       if (resource === "departments") {
         const employees = await api<AnyRow[]>("/employees", session);
-        setReferences({ departments: nextRows, employees, accounts: [] });
+        setReferences({ departments: nextRows, employees, accounts: [], roles: [] });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loadFailed);
@@ -166,7 +183,25 @@ export function ResourcePanel({
     }
   }
 
-  const columns =
+  async function resetAccountAccess(row: AnyRow) {
+    if (!row.id) return;
+    setError("");
+    try {
+      const result = await api<{ activationToken: string }>(`/accounts/${row.id}/reset-access`, session, {
+        method: "POST",
+      });
+      setPendingAccessReset(null);
+      setAccessResetLink(`${window.location.origin}/activate#token=${result.activationToken}`);
+      showToast(t.accountAccessReset, "success");
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t.saveFailed;
+      setError(message);
+      showToast(message, "error");
+    }
+  }
+
+  const discoveredColumns =
     resource === "employees"
       ? employeeTableColumns
       : Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
@@ -176,6 +211,12 @@ export function ResourcePanel({
               !(resource === "accounts" && column === "avatar"),
           )
           .slice(0, 9);
+  const columns = resource === "accounts"
+    ? [
+        ...["username", "employeeId"].filter((column) => discoveredColumns.includes(column)),
+        ...discoveredColumns.filter((column) => !["username", "employeeId"].includes(column)),
+      ]
+    : discoveredColumns;
   const filteredRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return rows.filter(row => {
@@ -204,6 +245,7 @@ export function ResourcePanel({
         setEditing,
         setViewing,
         setPendingDelete,
+        setPendingAccessReset,
       ),
     [columns, sort, resource, references, language, t, actions],
   );
@@ -294,7 +336,15 @@ export function ResourcePanel({
         <DataGrid
           rows={sortedRows}
           columns={orderedDataGridColumns}
-          slots={{ columnMenu: props => <TableColumnMenu {...props} onOpenColumnManager={() => setColumnManagerOpen(true)} /> }}
+          slots={{
+            columnMenu: props => (
+              <TableColumnMenu
+                {...props}
+                onlyColumnManager={resource === "accounts"}
+                onOpenColumnManager={() => setColumnManagerOpen(true)}
+              />
+            ),
+          }}
           columnVisibilityModel={columnVisibilityModel}
           onColumnVisibilityModelChange={onColumnVisibilityModelChange}
           loading={loading}
@@ -325,7 +375,10 @@ export function ResourcePanel({
           session={session}
           t={t}
           references={references}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            setEditing(null);
+            void load();
+          }}
           onSaved={() => {
             setEditing(null);
             void load();
@@ -386,6 +439,35 @@ export function ResourcePanel({
           </DialogActions>
         </Dialog>
       )}
+      {pendingAccessReset && (
+        <Dialog open onClose={() => setPendingAccessReset(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>{t.resetAccountAccessTitle}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">{t.resetAccountAccessMessage}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setPendingAccessReset(null)}>{t.cancel}</Button>
+            <Button color="warning" variant="contained" onClick={() => void resetAccountAccess(pendingAccessReset)}>
+              {t.resetAccess}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      <Dialog open={Boolean(accessResetLink)} onClose={() => setAccessResetLink("")} maxWidth="sm" fullWidth>
+        <DialogTitle>{t.resetLink}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="body2">{t.resetLinkMessage}</Typography>
+            <TextField value={accessResetLink} fullWidth multiline minRows={3} slotProps={{ input: { readOnly: true } }} />
+            <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => void navigator.clipboard.writeText(accessResetLink).then(() => showToast(t.linkCopied, "success"))}>
+              {t.copyLink}
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAccessResetLink("")}>{t.close}</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
@@ -413,6 +495,7 @@ function EditDialog({
 }) {
   const [form, setForm] = useState<AnyRow>(row);
   const [error, setError] = useState("");
+  const [activationLink, setActivationLink] = useState("");
   const [assignmentState, setAssignmentState] =
     useState<AssignmentState | null>(null);
   const assignmentType =
@@ -421,11 +504,23 @@ function EditDialog({
       : row.id && resource === "roles"
         ? "role"
         : undefined;
+  const formFields: Field[] = resource === "accounts"
+    ? !row.id
+      ? [
+          ...schema.fields.filter((field) => field.name === "employeeId"),
+          { name: "roleIds" },
+        ]
+      : readOnly
+        ? schema.fields.filter((field) => ["employeeId", "username", "status"].includes(field.name))
+        : schema.fields
+          .filter((field) => field.name === "status")
+          .map((field) => ({ ...field, options: ["ACTIVE", "LOCKED", "TERMINATED"] }))
+    : schema.fields;
 
   async function save() {
     if (readOnly) return;
     setError("");
-    const missingFields = schema.fields.filter((field) =>
+    const missingFields = formFields.filter((field) =>
       field.required &&
       !(resource === "accounts" && row.id && field.name === "password") &&
       !String(getFieldValue(form, field.name) ?? "").trim(),
@@ -438,7 +533,7 @@ function EditDialog({
       return;
     }
     const validationError = validatePhoneFields(
-      schema.fields,
+      formFields,
       form,
       t,
       resource,
@@ -448,31 +543,41 @@ function EditDialog({
       showToast(validationError, "error");
       return;
     }
-    const imageValidationError = validateImageFields(schema.fields, form, t);
+    const imageValidationError = validateImageFields(formFields, form, t);
     if (imageValidationError) {
       setError(imageValidationError);
       showToast(imageValidationError, "error");
       return;
     }
-    const body = requestBodyFromFields(schema.fields, form);
-    if (
-      resource === "accounts" &&
-      !row.id &&
-      !String(body.password ?? "").trim()
-    ) {
-      setError(t.passwordRequired);
-      showToast(t.passwordRequired, "error");
-      return;
-    }
+    const body = requestBodyFromFields(formFields, form);
     try {
-      await api(`/${resource}${row.id ? `/${row.id}` : ""}`, session, {
+      const result = await api<{ activationToken?: string }>(`/${resource}${row.id ? `/${row.id}` : ""}`, session, {
         method: row.id ? "PUT" : "POST",
         body: JSON.stringify(body),
       });
+      if (resource === "accounts" && !row.id && result.activationToken) {
+        setActivationLink(`${window.location.origin}/activate#token=${result.activationToken}`);
+        showToast(t.saved, "success");
+        return;
+      }
       if (assignmentType && assignmentState && row.id) {
         await syncAssignments(row.id, assignmentState, session);
       }
       showToast(t.saved, "success");
+      onSaved();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t.saveFailed;
+      setError(message);
+      showToast(message, "error");
+    }
+  }
+
+  async function unlockAccount() {
+    if (!row.id) return;
+    setError("");
+    try {
+      await api(`/accounts/${row.id}/unlock`, session, { method: "POST" });
+      showToast(t.accountUnlocked, "success");
       onSaved();
     } catch (err) {
       const message = err instanceof Error ? err.message : t.saveFailed;
@@ -488,10 +593,18 @@ function EditDialog({
       maxWidth={resource === "employees" || assignmentType ? "md" : "sm"}
       fullWidth
     >
-      <DialogTitle>{readOnly ? `${t.view} ${t.resources[resource as keyof typeof t.resources]}` : dialogTitle(resource, row.id, t)}</DialogTitle>
+      <DialogTitle>{activationLink ? t.activationLink : readOnly ? `${t.view}${dialogResourceName(resource, t)}` : dialogTitle(resource, row.id, t)}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {resource === "employees" ? (
+          {activationLink ? (
+            <>
+              <Typography variant="body2">{t.activationLinkMessage}</Typography>
+              <TextField value={activationLink} fullWidth multiline minRows={3} slotProps={{ input: { readOnly: true } }} />
+              <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => void navigator.clipboard.writeText(activationLink).then(() => showToast(t.linkCopied, "success"))}>
+                {t.copyLink}
+              </Button>
+            </>
+          ) : resource === "employees" ? (
             <FormSections
               sections={row.id ? employeeFormSections : newEmployeeFormSections}
               fields={schema.fields}
@@ -504,7 +617,7 @@ function EditDialog({
               readOnly={readOnly}
             />
           ) : (
-            schema.fields.map((field) =>
+            formFields.map((field) =>
               renderField(
                 resource,
                 field,
@@ -523,20 +636,33 @@ function EditDialog({
               {error}
             </Typography>
           )}
-          {!readOnly && assignmentType && (
+          {assignmentType && (
             <AssignmentSection
               type={assignmentType}
               row={row}
               session={session}
               t={t}
-              onChange={setAssignmentState}
+              readOnly={readOnly}
+              onChange={readOnly ? undefined : setAssignmentState}
             />
+          )}
+          {!readOnly && resource === "accounts" && row.id && (
+            <>
+              <Divider />
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+                {form.status === "LOCKED" && (
+                  <Button variant="outlined" startIcon={<LockOpenIcon />} onClick={unlockAccount}>
+                    {t.unlockAccount}
+                  </Button>
+                )}
+              </Stack>
+            </>
           )}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{readOnly ? t.close : t.cancel}</Button>
-        {!readOnly && <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
+        <Button onClick={onClose}>{activationLink || readOnly ? t.close : t.cancel}</Button>
+        {!activationLink && !readOnly && <Button onClick={save} variant="contained" startIcon={<SaveIcon />}>
           {t.save}
         </Button>}
       </DialogActions>
@@ -560,11 +686,16 @@ export function FormSections({
   form,
   setForm,
   t,
-  references = { departments: [], employees: [], accounts: [] },
+  references = { departments: [], employees: [], accounts: [], roles: [] },
   currentRowId,
   language = "zh-CN",
   columns = 2,
   readOnly = false,
+  onImageChange,
+  onImageRemove,
+  splitImageColumn = false,
+  splitImageColumnAction,
+  splitImageColumnActionAfter,
 }: {
   sections: readonly FormSection[];
   fields: Field[];
@@ -576,8 +707,30 @@ export function FormSections({
   language?: Language;
   columns?: 2 | 3;
   readOnly?: boolean;
+  onImageChange?: (fieldName: string, value: string | null) => void;
+  onImageRemove?: (fieldName: string) => void;
+  splitImageColumn?: boolean;
+  splitImageColumnAction?: React.ReactNode;
+  splitImageColumnActionAfter?: string;
 }) {
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
+
+  function renderSectionField(field: Field, imageLayout: "inline" | "stacked" = "inline") {
+    return renderField(
+      "employees",
+      field,
+      form,
+      setForm,
+      t,
+      references,
+      currentRowId,
+      language,
+      readOnly,
+      onImageChange,
+      onImageRemove,
+      imageLayout,
+    );
+  }
 
   return (
     <Stack spacing={2.5}>
@@ -586,49 +739,94 @@ export function FormSections({
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {t[section.titleKey]}
           </Typography>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, minmax(0, 1fr))",
-                lg: `repeat(${columns}, minmax(0, 1fr))`,
-              },
-              gap: 2,
-              mt: 1,
-            }}
-          >
-            {section.fields.map((fieldName) => {
-              const field = fieldByName.get(fieldName);
-              if (!field) return null;
-              const shouldSpan =
-                isImageUploadField(fieldName) || fieldName === "address";
+          {splitImageColumn && section.fields.some(isImageUploadField) ? (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "minmax(150px, 1fr) auto minmax(0, 4fr)" },
+                gap: 2,
+                mt: 1,
+                alignItems: "start",
+              }}
+            >
+              <Box>
+                {section.fields
+                  .filter(isImageUploadField)
+                  .map((fieldName) => {
+                    const field = fieldByName.get(fieldName);
+                    return field ? <Box key={fieldName}>{renderSectionField(field, "stacked")}</Box> : null;
+                  })}
+              </Box>
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", md: "block" } }} />
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                  gap: 2,
+                }}
+              >
+                {section.fields
+                  .filter((fieldName) => !isImageUploadField(fieldName))
+                  .map((fieldName) => {
+                    const field = fieldByName.get(fieldName);
+                    if (!field) return null;
+                    return (
+                      <React.Fragment key={fieldName}>
+                        <Box>{renderSectionField(field)}</Box>
+                        {splitImageColumnAction
+                          && fieldName === (splitImageColumnActionAfter
+                            ?? section.fields.filter((name) => !isImageUploadField(name))[1]) && (
+                          <Box sx={{ gridColumn: { xs: "1", sm: "2" } }}>
+                            {splitImageColumnAction}
+                          </Box>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                {splitImageColumnAction
+                  && !section.fields.includes(splitImageColumnActionAfter ?? "")
+                  && section.fields.filter((fieldName) => !isImageUploadField(fieldName)).length < 2 && (
+                  <Box sx={{ gridColumn: { xs: "1", sm: "2" } }}>
+                    {splitImageColumnAction}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  lg: `repeat(${columns}, minmax(0, 1fr))`,
+                },
+                gap: 2,
+                mt: 1,
+              }}
+            >
+              {section.fields.map((fieldName) => {
+                const field = fieldByName.get(fieldName);
+                if (!field) return null;
+                const shouldSpan =
+                  isImageUploadField(fieldName) || fieldName === "address";
 
-              return (
-                <Box
-                  key={fieldName}
-                  sx={{
-                    gridColumn: shouldSpan
-                      ? { xs: "1", sm: "1 / -1" }
-                      : undefined,
-                    width: "100%",
-                  }}
-                >
-                  {renderField(
-                    "employees",
-                    field,
-                    form,
-                    setForm,
-                    t,
-                    references,
-                    currentRowId,
-                    language,
-                    readOnly,
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
+                return (
+                  <Box
+                    key={fieldName}
+                    sx={{
+                      gridColumn: shouldSpan
+                        ? { xs: "1", sm: "1 / -1" }
+                        : undefined,
+                      width: "100%",
+                    }}
+                  >
+                    {renderSectionField(field)}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
         </Box>
       ))}
     </Stack>
@@ -637,7 +835,12 @@ export function FormSections({
 
 function dialogTitle(resource: string, rowId: unknown, t: Translation) {
   if (resource === "employees") return rowId ? t.updateEmployee : t.newEmployee;
-  return `${rowId ? t.edit : t.create} ${t.resources[resource as keyof typeof t.resources]}`;
+  return `${rowId ? t.edit : t.create}${dialogResourceName(resource, t)}`;
+}
+
+function dialogResourceName(resource: string, t: Translation) {
+  if (resource === "accounts") return "账号";
+  return t.resources[resource as keyof typeof t.resources];
 }
 
 async function syncAssignments(
@@ -682,12 +885,14 @@ function AssignmentSection({
   session,
   t,
   onChange,
+  readOnly = false,
 }: {
   type: AssignmentType;
   row: AnyRow;
   session: Session;
   t: Translation;
-  onChange: (state: AssignmentState) => void;
+  onChange?: (state: AssignmentState) => void;
+  readOnly?: boolean;
 }) {
   const target = type === "account" ? "roles" : "permissions";
   const [items, setItems] = useState<AnyRow[]>([]);
@@ -717,7 +922,7 @@ function AssignmentSection({
       setItems(all);
       setOriginalIds(loadedIds);
       setSelectedIds(loadedIds);
-      onChange({ type, originalIds: loadedIds, selectedIds: loadedIds });
+      onChange?.({ type, originalIds: loadedIds, selectedIds: loadedIds });
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loadFailed);
     } finally {
@@ -734,7 +939,7 @@ function AssignmentSection({
       Array.isArray(value) ? value : String(value).split(",")
     ).map(String);
     setSelectedIds(nextIds);
-    onChange({ type, originalIds, selectedIds: nextIds });
+    onChange?.({ type, originalIds, selectedIds: nextIds });
   }
 
   function renderSelectedValues(selectedIds: string[]) {
@@ -759,6 +964,14 @@ function AssignmentSection({
         )}
         {loading ? (
           <Skeleton variant="rounded" height={40} sx={{ mt: 1 }} />
+        ) : readOnly ? (
+          <TextField
+            fullWidth
+            label={selectLabel}
+            value={renderSelectedValues(selectedIds) || "-"}
+            slotProps={{ input: { readOnly: true } }}
+            sx={{ mt: 1 }}
+          />
         ) : (
           <FormControl fullWidth size="small" sx={{ mt: 1 }}>
             <InputLabel>{selectLabel}</InputLabel>
@@ -937,6 +1150,9 @@ function renderField(
   currentRowId?: string,
   language: Language = "zh-CN",
   readOnly = false,
+  onImageChange?: (fieldName: string, value: string | null) => void,
+  onImageRemove?: (fieldName: string) => void,
+  imageLayout: "inline" | "stacked" = "inline",
 ) {
   const optionLabels: Record<string, string> =
     field.name === "moduleCode"
@@ -974,7 +1190,15 @@ function renderField(
   }
 
   if (isImageUploadField(field.name)) {
-    return renderImageUploadField(field, form, setForm, t);
+    return renderImageUploadField(
+      field,
+      form,
+      setForm,
+      t,
+      (value) => onImageChange?.(field.name, value),
+      onImageRemove ? () => onImageRemove(field.name) : undefined,
+      imageLayout,
+    );
   }
 
   if (isChinaAddressField(field.name)) {
@@ -1008,6 +1232,46 @@ function renderField(
           />
         )}
       />
+    );
+  }
+
+  if (resource === "accounts" && field.name === "roleIds") {
+    const selectedRoleIds = Array.isArray(form.roleIds)
+      ? form.roleIds.map(String)
+      : [];
+    const roleOptions = references.roles.filter((role) => role.status === "ACTIVE");
+    const label = formFieldLabel(resource, t, field.name);
+    return (
+      <FormControl key={field.name} fullWidth size="small">
+        <InputLabel>{label}</InputLabel>
+        <Select
+          multiple
+          label={label}
+          value={selectedRoleIds}
+          onChange={(event) => {
+            const value = event.target.value;
+            const roleIds = (Array.isArray(value) ? value : value.split(",")).map(String);
+            setForm((current) => ({ ...current, roleIds }));
+          }}
+          renderValue={(selected) =>
+            (selected as string[])
+              .map((roleId) => roleOptions.find((role) => String(role.id) === roleId))
+              .filter((role): role is AnyRow => Boolean(role))
+              .map((role) => String(role.name ?? role.code ?? ""))
+              .join("、")
+          }
+        >
+          {roleOptions.map((role) => {
+            const roleId = String(role.id);
+            return (
+              <MenuItem key={roleId} value={roleId}>
+                <Checkbox checked={selectedRoleIds.includes(roleId)} />
+                <ListItemText primary={String(role.name ?? role.code ?? "")} />
+              </MenuItem>
+            );
+          })}
+        </Select>
+      </FormControl>
     );
   }
 
@@ -1251,6 +1515,9 @@ function renderImageUploadField(
   form: AnyRow,
   setForm: React.Dispatch<React.SetStateAction<AnyRow>>,
   t: Translation,
+  onImageChange?: (value: string | null) => void,
+  onImageRemove?: () => void,
+  imageLayout: "inline" | "stacked" = "inline",
 ) {
   const value = String(getFieldValue(form, field.name) ?? "");
   const label = fieldLabel(t, field.name);
@@ -1276,6 +1543,7 @@ function renderImageUploadField(
         isValidImageDataUrl(reader.result)
       ) {
         setForm((current) => setFieldValue(current, field.name, reader.result));
+        onImageChange?.(reader.result);
       } else {
         window.alert(t.imageInvalid);
       }
@@ -1289,11 +1557,15 @@ function renderImageUploadField(
       <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.75 }}>
         {label}
       </Typography>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+      <Stack
+        direction={imageLayout === "stacked" ? "column" : "row"}
+        spacing={1.5}
+        sx={{ alignItems: imageLayout === "stacked" ? "flex-start" : "center" }}
+      >
         <Box
           sx={{
-            width: 72,
-            height: 72,
+            width: imageLayout === "stacked" ? 120 : 72,
+            height: imageLayout === "stacked" ? 120 : 72,
             borderRadius: 1,
             border: "1px solid #cfd8d3",
             bgcolor: "#f5f7f4",
@@ -1315,7 +1587,7 @@ function renderImageUploadField(
           )}
         </Box>
         <Stack
-          direction={{ xs: "column", sm: "row" }}
+          direction={imageLayout === "stacked" ? "row" : { xs: "column", sm: "row" }}
           spacing={1}
           sx={{ alignItems: { sm: "center" }, minWidth: 0 }}
         >
@@ -1336,9 +1608,14 @@ function renderImageUploadField(
             <Tooltip title={t.removeImage}>
               <IconButton
                 color="error"
-                onClick={() =>
-                  setForm((current) => setFieldValue(current, field.name, null))
-                }
+                onClick={() => {
+                  if (onImageRemove) {
+                    onImageRemove();
+                    return;
+                  }
+                  setForm((current) => setFieldValue(current, field.name, null));
+                  onImageChange?.(null);
+                }}
               >
                 <DeleteIcon />
               </IconButton>
@@ -1478,6 +1755,7 @@ function buildGridColumns(
   setEditing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
   setViewing: React.Dispatch<React.SetStateAction<AnyRow | null>>,
   setPendingDelete: React.Dispatch<React.SetStateAction<AnyRow | null>>,
+  setPendingAccessReset: React.Dispatch<React.SetStateAction<AnyRow | null>>,
 ): GridColDef[] {
   const dataColumns = [
     ...columns.map((column): GridColDef => {
@@ -1560,6 +1838,7 @@ function buildGridColumns(
           <RowActionMenu actions={[
             { label: t.view, icon: <VisibilityIcon fontSize="small" />, onClick: () => setViewing(params.row) },
             ...(actions.edit ? [{ label: t.edit, icon: <EditIcon fontSize="small" />, onClick: () => setEditing(params.row) }] : []),
+            ...(resource === "accounts" && actions.edit ? [{ label: t.resetAccess, icon: <RestartAltIcon fontSize="small" />, onClick: () => setPendingAccessReset(params.row) }] : []),
             ...(actions.delete ? [{ label: t.delete, icon: <DeleteIcon fontSize="small" />, color: "error" as const, onClick: () => setPendingDelete(params.row) }] : []),
           ]} ariaLabel={t.actions} />
         </Box>
@@ -1708,7 +1987,7 @@ function accountSummary(account?: AnyRow) {
 
 function assignmentItemLabel(item: AnyRow) {
   return (
-    [item.name, item.code ? `(${item.code})` : ""].filter(Boolean).join(" ") ||
+    [item.name].filter(Boolean).join(" ") ||
     String(item.id ?? "")
   );
 }
@@ -1723,14 +2002,13 @@ function availableAccountEmployees(
       .filter((employeeId) => employeeId && employeeId !== currentEmployeeId),
   );
   return references.employees.filter(
-    (employee) => !assignedEmployeeIds.has(employee.id),
+    (employee) =>
+      employee.status === "ACTIVE" && !assignedEmployeeIds.has(employee.id),
   );
 }
 
 function departmentName(department: AnyRow) {
-  return [department.name, department.code ? `(${department.code})` : ""]
-    .filter(Boolean)
-    .join(" ");
+  return String(department.name ?? "");
 }
 
 function accountEmployeeName(employee: AnyRow) {

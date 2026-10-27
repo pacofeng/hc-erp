@@ -33,18 +33,50 @@ export function Login({
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [captcha, setCaptcha] = useState<{ challengeId: string; imageDataUrl: string } | null>(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+
+  async function refreshCaptchaIfRequired() {
+    const protection = await api<{ captchaRequired: boolean }>("/auth/login-protection");
+    if (!protection.captchaRequired) {
+      setCaptcha(null);
+      setCaptchaAnswer("");
+      return;
+    }
+    setCaptcha(await api<{ challengeId: string; imageDataUrl: string }>("/auth/login-captcha"));
+    setCaptchaAnswer("");
+  }
+
+  useEffect(() => {
+    void refreshCaptchaIfRequired().catch(() => undefined);
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (captcha && !captchaAnswer.trim()) {
+      setError(t.captchaRequired);
+      return;
+    }
     try {
       const result = await api<Session>("/auth/login", undefined, {
         method: "POST",
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username,
+          password,
+          captchaChallengeId: captcha?.challengeId,
+          captchaAnswer,
+        }),
       });
       onLogin(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.loginFailed);
+      const message = err instanceof Error ? err.message : t.loginFailed;
+      setError(
+        /请求失败（(?:401|403)）/.test(message)
+          ? t.invalidCredentials
+          : message,
+      );
+      void refreshCaptchaIfRequired().catch(() => undefined);
     }
   }
 
@@ -65,6 +97,32 @@ export function Login({
             autoComplete="current-password"
             required
           />
+          {captcha && (
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Box
+                  component="img"
+                  src={captcha.imageDataUrl}
+                  alt={t.captchaHint}
+                  sx={{ width: 190, height: 58, border: 1, borderColor: "divider", borderRadius: 1 }}
+                />
+                <Button
+                  size="small"
+                  onClick={() => void refreshCaptchaIfRequired().catch((err) => {
+                    setError(err instanceof Error ? err.message : t.loadFailed);
+                  })}
+                >
+                  {t.refreshCaptcha}
+                </Button>
+              </Stack>
+              <TextField
+                label={t.captcha}
+                value={captchaAnswer}
+                onChange={(event) => setCaptchaAnswer(event.target.value.toUpperCase())}
+                placeholder={t.captchaHint}
+              />
+            </Stack>
+          )}
           <Box sx={{ mt: -1 }}>
             <Button
               variant="text"
@@ -233,6 +291,75 @@ export function SecurityQuestionSetup({
       </Paper>
     </PublicPageShell>
   );
+}
+
+export function AccountActivation({ t, onCompleted }: { t: Translation; onCompleted: () => void }) {
+  const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [answers, setAnswers] = useState([{ question: "", answer: "" }, { question: "", answer: "" }, { question: "", answer: "" }]);
+  const [username, setUsername] = useState("");
+  const [usernameEditable, setUsernameEditable] = useState(true);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [ready, setReady] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!token) { setError("激活链接无效或已失效"); return; }
+    Promise.all([
+      api<{ username: string | null; usernameEditable: boolean }>("/auth/account-activation/verify", undefined, { method: "POST", body: JSON.stringify({ token }) }),
+      api<{ questions: string[] }>("/auth/security-questions/options"),
+    ]).then(([activation, options]) => {
+      setUsername(activation.username ?? "");
+      setUsernameEditable(activation.usernameEditable);
+      setQuestions(options.questions);
+      setAnswers(current => current.map((answer, index) => ({ ...answer, question: options.questions[index] ?? "" })));
+      setReady(true);
+    }).catch(err => setError(err instanceof Error ? err.message : t.loadFailed));
+  }, [token, t.loadFailed]);
+
+  async function activate() {
+    setError("");
+    if (usernameEditable && !username.trim()) { setError("请输入用户名"); return; }
+    if (!isStrongPassword(password)) { setError(t.passwordStrengthHint); return; }
+    if (password !== confirmPassword) { setError(t.passwordsDoNotMatch); return; }
+    if (answers.some(answer => !answer.question || !answer.answer.trim()) || new Set(answers.map(answer => answer.question)).size < 3) {
+      setError(t.securityQuestionSetupMessage);
+      return;
+    }
+    try {
+      await api("/auth/account-activation", undefined, {
+        method: "POST",
+        body: JSON.stringify({ token, username, password, confirmPassword, answers }),
+      });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.saveFailed);
+    }
+  }
+
+  return <PublicPageShell maxWidth={720}>
+    <Paper sx={{ width: "100%", p: 3 }}>
+      <Stack spacing={2.5}>
+        <Box><Typography variant="h5" sx={{ fontWeight: 700 }}>{usernameEditable ? t.accountActivationTitle : t.resetAccountTitle}</Typography><Typography variant="body2" color="text.secondary">{usernameEditable ? t.accountActivationMessage : t.accountAccessResetMessage}</Typography></Box>
+        {ready && !success && <>
+          <TextField label={t.username} value={username} onChange={event => setUsername(event.target.value)} disabled={!usernameEditable} />
+          <PasswordTextField label={t.newPassword} value={password} onChange={setPassword} autoComplete="new-password" />
+          <PasswordTextField label={t.confirmPassword} value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
+          <Typography variant="caption" color="text.secondary">{t.passwordStrengthHint}</Typography>
+          {answers.map((answer, index) => <Stack key={index} spacing={1.5}>
+            <FormControl fullWidth><InputLabel>{t.securityQuestion}</InputLabel><Select label={t.securityQuestion} value={answer.question} onChange={event => setAnswers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, question: event.target.value } : item))}>
+              {questions.map(question => <MenuItem key={question} value={question} disabled={answers.some((item, itemIndex) => itemIndex !== index && item.question === question)}>{securityQuestionLabel(t, question)}</MenuItem>)}
+            </Select></FormControl>
+            <TextField label={t.securityAnswer} value={answer.answer} onChange={event => setAnswers(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, answer: event.target.value } : item))} />
+          </Stack>)}
+        </>}
+        {error && <Typography color="error" variant="body2">{error}</Typography>}
+        {success ? <><Typography color="success.main" variant="body2">{usernameEditable ? t.accountActivationSuccess : t.accountResetSuccess}</Typography><Button variant="contained" onClick={onCompleted}>{t.signIn}</Button></> : <Button variant="contained" disabled={!ready} onClick={activate}>{usernameEditable ? t.activateAccount : t.resetAccount}</Button>}
+      </Stack>
+    </Paper>
+  </PublicPageShell>;
 }
 
 function ForgotPasswordDialog({
