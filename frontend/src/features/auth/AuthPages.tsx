@@ -29,8 +29,8 @@ export function Login({
   t: Translation;
   onLogin: (session: Session) => void;
 }) {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
   const [captcha, setCaptcha] = useState<{ challengeId: string; imageDataUrl: string } | null>(null);

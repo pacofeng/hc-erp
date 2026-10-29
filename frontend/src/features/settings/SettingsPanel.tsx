@@ -17,6 +17,7 @@ import {
   Stack,
   Tab,
   Tabs,
+  TextField,
   Typography,
 } from "@mui/material";
 import { api } from "../../app/apiClient";
@@ -252,6 +253,7 @@ export function SettingsPanel({
               }}
               splitImageColumn={activeTab === "account"}
               splitImageColumnActionAfter="passwordChangedAt"
+              hideImageLabel={activeTab === "account"}
               splitImageColumnAction={
                 activeTab === "account" ? (
                   <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
@@ -322,11 +324,12 @@ export function SettingsPanel({
                     ))}
                   </Select>
                 </FormControl>
-                <PasswordTextField
+                <TextField
+                  fullWidth
                   label={`${t.securityAnswer} ${index + 1}`}
                   value={answer.answer}
-                  onChange={(value) => setSecurityAnswers((current) => current.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, answer: value } : item,
+                  onChange={(event) => setSecurityAnswers((current) => current.map((item, itemIndex) =>
+                    itemIndex === index ? { ...item, answer: event.target.value } : item,
                   ))}
                   autoComplete="off"
                 />

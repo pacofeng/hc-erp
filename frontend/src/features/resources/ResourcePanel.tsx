@@ -696,6 +696,7 @@ export function FormSections({
   splitImageColumn = false,
   splitImageColumnAction,
   splitImageColumnActionAfter,
+  hideImageLabel = false,
 }: {
   sections: readonly FormSection[];
   fields: Field[];
@@ -712,6 +713,7 @@ export function FormSections({
   splitImageColumn?: boolean;
   splitImageColumnAction?: React.ReactNode;
   splitImageColumnActionAfter?: string;
+  hideImageLabel?: boolean;
 }) {
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
 
@@ -729,6 +731,7 @@ export function FormSections({
       onImageChange,
       onImageRemove,
       imageLayout,
+      hideImageLabel,
     );
   }
 
@@ -1153,6 +1156,7 @@ function renderField(
   onImageChange?: (fieldName: string, value: string | null) => void,
   onImageRemove?: (fieldName: string) => void,
   imageLayout: "inline" | "stacked" = "inline",
+  hideImageLabel = false,
 ) {
   const optionLabels: Record<string, string> =
     field.name === "moduleCode"
@@ -1198,6 +1202,7 @@ function renderField(
       (value) => onImageChange?.(field.name, value),
       onImageRemove ? () => onImageRemove(field.name) : undefined,
       imageLayout,
+      hideImageLabel,
     );
   }
 
@@ -1518,6 +1523,7 @@ function renderImageUploadField(
   onImageChange?: (value: string | null) => void,
   onImageRemove?: () => void,
   imageLayout: "inline" | "stacked" = "inline",
+  hideLabel = false,
 ) {
   const value = String(getFieldValue(form, field.name) ?? "");
   const label = fieldLabel(t, field.name);
@@ -1554,9 +1560,11 @@ function renderImageUploadField(
 
   return (
     <Box>
-      <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.75 }}>
-        {label}
-      </Typography>
+      {!hideLabel && (
+        <Typography variant="body2" sx={{ color: "text.secondary", mb: 0.75 }}>
+          {label}
+        </Typography>
+      )}
       <Stack
         direction={imageLayout === "stacked" ? "column" : "row"}
         spacing={1.5}
