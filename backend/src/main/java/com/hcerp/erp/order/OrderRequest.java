@@ -4,11 +4,11 @@ import java.time.LocalDate;
 import jakarta.validation.constraints.*;
 
 public record OrderRequest(
-        @NotBlank(message = "客户或代理不能为空") @Size(max = 200, message = "客户或代理不能超过200个字符")
+        @NotBlank(message = "请输入客户或代理") @Size(max = 200, message = "客户或代理不能超过200个字符")
         String customerName,
-        @NotBlank(message = "合同号不能为空") @Size(max = 100, message = "合同号不能超过100个字符")
+        @NotBlank(message = "请输入合同号") @Size(max = 100, message = "合同号不能超过100个字符")
         String contractNumber,
-        @NotBlank(message = "机型不能为空") @Size(max = 2000, message = "机型不能超过2000个字符")
+        @NotBlank(message = "请选择机型") @Size(max = 2000, message = "机型不能超过2000个字符")
         String machineModels,
         @Size(max = 20000, message = "机型配置不能超过20000个字符")
         String machineModelConfigurations,
@@ -45,15 +45,15 @@ public record OrderRequest(
         @Size(max = 4000, message = "备注不能超过4000个字符")
         String remarks,
         
-        @NotNull(message = "预计生产完成日期不能为空")
+        @NotNull(message = "请选择预计生产完成日期")
         LocalDate expectedDate,
         
         LocalDate completedDate,
-        @NotBlank(message = "制单人不能为空") @Size(max = 100, message = "制单人不能超过100个字符")
+        @NotBlank(message = "请选择制单人") @Size(max = 100, message = "制单人不能超过100个字符")
         String preparedBy,
-        @NotBlank(message = "审核不能为空") @Size(max = 100, message = "审核不能超过100个字符")
+        @NotBlank(message = "请选择审核人") @Size(max = 100, message = "审核人不能超过100个字符")
         String reviewedBy,
-        @NotNull(message = "制单日期不能为空")
+        @NotNull(message = "请选择制单日期")
         LocalDate orderDate,
         @Pattern(regexp = "草稿|待审核|生产中|生产中（延误）|待出货|已结清|已发货|完成", message = "订单状态选项无效")
         String status,

@@ -75,7 +75,7 @@ public class CustomerController {
     }
 
     public record CustomerRequest(
-            @NotBlank(message = "公司名称不能为空") @Size(max = 200, message = "公司名称不能超过200个字符") String companyName,
+            @NotBlank(message = "请输入公司名称") @Size(max = 200, message = "公司名称不能超过200个字符") String companyName,
             @Size(max = 100, message = "国家不能超过100个字符") String country,
             @Size(max = 100, message = "来源不能超过100个字符") String source,
             @Size(max = 100, message = "联系人不能超过100个字符") String contactName,

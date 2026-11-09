@@ -6,7 +6,7 @@ import {
 } from "./constants";
 import { getResourceFromPath, navigate } from "./resources";
 import type { Session } from "./types";
-import { messages } from "./i18n";
+import { messages, requiredFieldMessage } from "./i18n";
 
 let csrfToken: string | null = null;
 let csrfRequest: Promise<string> | null = null;
@@ -68,7 +68,11 @@ export async function api<T>(
       : null;
     if (required) {
       const field = required[1] as keyof typeof messages.fields;
-      throw new Error(messages.requiredFields + (messages.fields[field] ?? field));
+      const selectionFields = new Set([
+        "gender", "marriedStatus", "departmentId", "managerId", "employeeId",
+        "roleIds", "relation", "status", "moduleCode", "dateOfBirth", "hireDate", "terminationDate",
+      ]);
+      throw new Error(requiredFieldMessage(messages.fields[field] ?? field, selectionFields.has(field)));
     }
     throw new Error(message === "Duplicate value already exists"
       ? "数据已存在，请检查员工编号、身份证号码等唯一字段"

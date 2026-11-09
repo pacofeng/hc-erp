@@ -1,7 +1,8 @@
 import packageJson from "../../package.json";
 
 export const API_BASE =
-  import.meta.env.VITE_API_BASE ?? "http://localhost:8080/api";
+  import.meta.env.VITE_API_BASE
+  ?? (import.meta.env.DEV ? "http://localhost:8080/api" : "/api");
 export const LOGO_SRC = "/images/logo.png";
 export const ERP_VERSION = `v${packageJson.version}`;
 

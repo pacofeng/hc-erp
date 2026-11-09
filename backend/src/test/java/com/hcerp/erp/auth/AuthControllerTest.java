@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.hcerp.erp.account.Account;
 import com.hcerp.erp.account.AccountRepository;
 import com.hcerp.erp.security.AuthenticationCookieService;
+import com.hcerp.erp.security.ClientIpResolver;
 import com.hcerp.erp.security.ErpUserDetails;
 import com.hcerp.erp.security.JwtService;
 import com.hcerp.erp.security.LoginProtectionService;
@@ -89,6 +90,38 @@ class AuthControllerTest {
         verify(accounts).save(account);
     }
 
+    @Test
+    void returnsChineseMessageWhenNewPasswordsDoNotMatch() {
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        AccountRepository accounts = mock(AccountRepository.class);
+        Account account = account();
+        when(encoder.matches("current-password", account.passwordHash)).thenReturn(true);
+        AuthController controller = controller(accounts, encoder);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> controller.changePassword(new ErpUserDetails(account, List.of()),
+                        new AuthController.ChangePasswordRequest("current-password", "Newpassword1!", "Different1!"),
+                        mock(HttpServletResponse.class)));
+
+        assertEquals("两次输入的密码不一致", exception.getMessage());
+    }
+
+    @Test
+    void returnsChineseMessageWhenNewPasswordIsTooWeak() {
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        AccountRepository accounts = mock(AccountRepository.class);
+        Account account = account();
+        when(encoder.matches("current-password", account.passwordHash)).thenReturn(true);
+        AuthController controller = controller(accounts, encoder);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> controller.changePassword(new ErpUserDetails(account, List.of()),
+                        new AuthController.ChangePasswordRequest("current-password", "weakpass", "weakpass"),
+                        mock(HttpServletResponse.class)));
+
+        assertEquals("密码至少需要 8 位，并包含字母、数字和特殊字符", exception.getMessage());
+    }
+
     private static AuthController controller(AccountRepository accounts, PasswordEncoder encoder) {
         return new AuthController(
                 mock(AuthenticationManager.class),
@@ -99,7 +132,8 @@ class AuthControllerTest {
                 new AuthenticationCookieService(false, "Lax", "", 30),
                 new LoginProtectionService(10, 600, 300),
                 new LoginCaptchaService(),
-                new AccountActivationService());
+                new AccountActivationService(),
+                new ClientIpResolver("127.0.0.1,::1"));
     }
 
     private static Account account() {

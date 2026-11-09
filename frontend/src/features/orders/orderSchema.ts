@@ -143,14 +143,16 @@ export function validateOrder(form: OrderRecord) {
   const errors: Record<string, string> = {};
   for (const field of orderFields) {
     const value = form[field.name];
-    if (field.required && !String(value ?? "").trim()) errors[field.name] = `请填写${field.label}`;
+    if (field.required && !String(value ?? "").trim()) {
+      errors[field.name] = `${field.options || field.type === "date" ? "请选择" : "请输入"}${field.label}`;
+    }
     if (typeof value === "string" && field.maxLength && value.length > field.maxLength)
       errors[field.name] = `${field.label}不能超过${field.maxLength}个字符`;
     if (field.options && value && !field.options.includes(String(value))) errors[field.name] = "请选择有效选项";
     if (field.type === "date" && value && !/^\d{4}-\d{2}-\d{2}$/.test(String(value)))
       errors[field.name] = "请输入有效日期";
   }
-  if (form.customized && !String(form.customRequirements ?? "").trim()) errors.customRequirements = "请填写订制要求";
+  if (form.customized && !String(form.customRequirements ?? "").trim()) errors.customRequirements = "请输入订制要求";
   if (form.voltage && !/^\d{1,4}V\s+\d{1,4}HZ$/.test(String(form.voltage))) {
     errors.voltage = "电伏电压格式应为380V 50HZ";
   }

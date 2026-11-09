@@ -85,7 +85,7 @@ export function OrderDialog({ row, readOnly, session, preparedByEmployees, revie
     if (!row.id || saving) return;
     const needsCompletedDate = ["生产中", "生产中（延误）"].includes(currentStatus) && status === "待出货";
     if (needsCompletedDate && !form.completedDate) {
-      const message = "请填写实际生产完成日期";
+      const message = "请选择实际生产完成日期";
       setErrors({ completedDate: message });
       showToast(message, "error");
       return;

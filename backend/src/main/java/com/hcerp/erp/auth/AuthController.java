@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hcerp.erp.account.AccountRepository;
 import com.hcerp.erp.common.Enums.AccountStatus;
 import com.hcerp.erp.security.AuthenticationCookieService;
+import com.hcerp.erp.security.ClientIpResolver;
 import com.hcerp.erp.security.ErpUserDetails;
 import com.hcerp.erp.security.JwtService;
 import com.hcerp.erp.security.LoginProtectionService;
@@ -47,11 +48,13 @@ public class AuthController {
     private final LoginProtectionService loginProtection;
     private final LoginCaptchaService loginCaptcha;
     private final AccountActivationService accountActivationService;
+    private final ClientIpResolver clientIpResolver;
 
     public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, AccountRepository accounts,
                           PasswordEncoder passwordEncoder, SecurityQuestionService securityQuestionService,
                           AuthenticationCookieService authenticationCookieService, LoginProtectionService loginProtection,
-                          LoginCaptchaService loginCaptcha, AccountActivationService accountActivationService) {
+                          LoginCaptchaService loginCaptcha, AccountActivationService accountActivationService,
+                          ClientIpResolver clientIpResolver) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.accounts = accounts;
@@ -61,6 +64,7 @@ public class AuthController {
         this.loginProtection = loginProtection;
         this.loginCaptcha = loginCaptcha;
         this.accountActivationService = accountActivationService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/login")
@@ -77,7 +81,7 @@ public class AuthController {
         ErpUserDetails user = (ErpUserDetails) auth.getPrincipal();
         var account = user.account();
         account.lastLoginAt = OffsetDateTime.now();
-        account.lastLoginIp = servletRequest.getRemoteAddr();
+        account.lastLoginIp = clientIp;
         accounts.save(account);
         return sessionResponse(user, servletResponse);
     }
@@ -331,8 +335,8 @@ public class AuthController {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, "账号或安全问题验证失败");
     }
 
-    private static String clientIp(HttpServletRequest request) {
-        return request.getRemoteAddr();
+    private String clientIp(HttpServletRequest request) {
+        return clientIpResolver.resolve(request);
     }
 
     private void applySecurityQuestions(com.hcerp.erp.account.Account account,
@@ -347,7 +351,7 @@ public class AuthController {
         for (SecurityQuestionAnswer answer : answers) {
             securityQuestionService.questionCode(answer.question());
             if (answer.answer() == null || answer.answer().trim().isBlank()) {
-                throw new IllegalArgumentException("安全问题答案不能为空");
+                throw new IllegalArgumentException("请输入安全问题答案");
             }
         }
         account.securityQuestion1 = securityQuestionService.questionCode(answers.get(0).question());
@@ -361,18 +365,18 @@ public class AuthController {
 
     private void validatePasswordStrength(String newPassword, String confirmPassword) {
         if (!newPassword.equals(confirmPassword)) {
-            throw new IllegalArgumentException("Passwords do not match");
+            throw new IllegalArgumentException("两次输入的密码不一致");
         }
         boolean hasLetter = newPassword.chars().anyMatch(Character::isLetter);
         boolean hasDigit = newPassword.chars().anyMatch(Character::isDigit);
         boolean hasSpecial = newPassword.chars().anyMatch(ch -> !Character.isLetterOrDigit(ch));
         if (newPassword.length() < 8 || !(hasLetter && hasDigit && hasSpecial)) {
             throw new IllegalArgumentException(
-                    "Password must be at least 8 characters and include letters, numbers, and special characters");
+                    "密码至少需要 8 位，并包含字母、数字和特殊字符");
         }
     }
 
-    public record LoginRequest(@NotBlank String username, @NotBlank String password,
+    public record LoginRequest(@NotBlank(message = "请输入用户名") String username, @NotBlank(message = "请输入密码") String password,
                                String captchaChallengeId, String captchaAnswer) {
     }
 
@@ -382,42 +386,48 @@ public class AuthController {
     public record AccountActivationVerification(String username, boolean usernameEditable) {
     }
 
-    public record LanguageRequest(@NotBlank String language) {
+    public record LanguageRequest(@NotBlank(message = "请选择语言") String language) {
     }
 
-    public record SecurityQuestionAnswer(@NotBlank String question, @NotBlank String answer) {
+    public record SecurityQuestionAnswer(@NotBlank(message = "请选择安全问题") String question,
+                                         @NotBlank(message = "请输入安全问题答案") String answer) {
     }
 
     public record SecurityQuestionSetupRequest(@NotNull @Size(min = 3) List<@Valid SecurityQuestionAnswer> answers) {
     }
 
-    public record ChangeSecurityQuestionsRequest(@NotBlank String currentPassword,
+    public record ChangeSecurityQuestionsRequest(@NotBlank(message = "请输入当前密码") String currentPassword,
                                                  @NotNull @Size(min = 3) List<@Valid SecurityQuestionAnswer> answers) {
     }
 
-    public record ForgotPasswordQuestionsRequest(@NotBlank String username) {
+    public record ForgotPasswordQuestionsRequest(@NotBlank(message = "请输入用户名") String username) {
     }
 
     public record ForgotPasswordQuestionsResponse(Integer questionIndex, String question) {
     }
 
-    public record ForgotPasswordVerifyRequest(@NotBlank String username, @NotNull Integer questionIndex,
-                                              @NotBlank String answer) {
+    public record ForgotPasswordVerifyRequest(@NotBlank(message = "请输入用户名") String username,
+                                              @NotNull(message = "请选择安全问题") Integer questionIndex,
+                                              @NotBlank(message = "请输入安全问题答案") String answer) {
     }
 
-    public record ForgotPasswordResetRequest(@NotBlank String username, @NotBlank String resetToken,
-                                             @NotBlank String newPassword, @NotBlank String confirmPassword) {
+    public record ForgotPasswordResetRequest(@NotBlank(message = "请输入用户名") String username,
+                                             @NotBlank(message = "重置凭证无效") String resetToken,
+                                             @NotBlank(message = "请输入新密码") String newPassword,
+                                             @NotBlank(message = "请再次输入确认密码") String confirmPassword) {
     }
 
-    public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword,
-                                        @NotBlank String confirmPassword) {
+    public record ChangePasswordRequest(@NotBlank(message = "请输入当前密码") String currentPassword,
+                                        @NotBlank(message = "请输入新密码") String newPassword,
+                                        @NotBlank(message = "请再次输入确认密码") String confirmPassword) {
     }
 
-    public record AccountActivationTokenRequest(@NotBlank String token) {
+    public record AccountActivationTokenRequest(@NotBlank(message = "激活链接无效或已失效") String token) {
     }
 
-    public record AccountActivationRequest(@NotBlank String token, String username,
-                                           @NotBlank String password, @NotBlank String confirmPassword,
+    public record AccountActivationRequest(@NotBlank(message = "激活链接无效或已失效") String token, String username,
+                                           @NotBlank(message = "请输入新密码") String password,
+                                           @NotBlank(message = "请再次输入确认密码") String confirmPassword,
                                            @NotNull @Size(min = 3) List<@Valid SecurityQuestionAnswer> answers) {
     }
 }

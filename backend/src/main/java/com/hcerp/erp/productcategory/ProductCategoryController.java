@@ -78,7 +78,7 @@ public class ProductCategoryController {
     }
 
     public record ProductCategoryRequest(
-            @NotBlank(message = "设备类别名称不能为空") @Size(max = 100, message = "设备类别名称不能超过100个字符") String name,
+            @NotBlank(message = "请输入设备类别名称") @Size(max = 100, message = "设备类别名称不能超过100个字符") String name,
             @Size(max = 4000, message = "设备类别描述不能超过4000个字符") String description,
             @NotBlank @Pattern(regexp = "启用|停用", message = "设备类别状态只能为启用或停用") String status) {
     }

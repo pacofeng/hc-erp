@@ -63,7 +63,7 @@ import {
   schemas,
   settingsFields,
 } from "../../app/schemaConfig";
-import { messages, type Translation } from "../../app/i18n";
+import { messages, requiredFieldMessage, type Translation } from "../../app/i18n";
 import type {
   AnyRow,
   AssignmentState,
@@ -526,8 +526,14 @@ function EditDialog({
       !String(getFieldValue(form, field.name) ?? "").trim(),
     );
     if (missingFields.length) {
-      const message = t.requiredFields + missingFields
-        .map((field) => formFieldLabel(resource, t, field.name)).join("、");
+      const message = missingFields
+        .map((field) => requiredFieldMessage(
+          formFieldLabel(resource, t, field.name),
+          Boolean(field.options)
+            || field.type === "date"
+            || ["departmentId", "managerId", "employeeId", "roleIds"].includes(field.name),
+        ))
+        .join("；");
       setError(message);
       showToast(message, "error");
       return;

@@ -100,7 +100,6 @@ export const messages = {
   imageInvalid: "请上传 JPG、PNG、GIF、WebP 或 BMP 图片",
   saved: "保存成功",
   deleted: "删除成功",
-  requiredFields: "请填写必填项：",
   page: "页码",
   of: "共",
   dashboardTitle: "仪表盘",
@@ -230,6 +229,10 @@ export const messages = {
 } as const;
 
 export type Translation = typeof messages;
+
+export function requiredFieldMessage(label: string, selection = false) {
+  return `${selection ? "请选择" : "请输入"}${label}`;
+}
 
 export function getPreferredLanguage() {
   return "zh-CN" as const;

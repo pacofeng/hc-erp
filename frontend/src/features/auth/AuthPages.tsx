@@ -18,7 +18,7 @@ import {
 import SaveIcon from "@mui/icons-material/Save";
 import SecurityIcon from "@mui/icons-material/Security";
 import { api } from "../../app/apiClient";
-import type { Translation } from "../../app/i18n";
+import { requiredFieldMessage, type Translation } from "../../app/i18n";
 import type { Session } from "../../app/types";
 import { PasswordTextField, PublicPageShell } from "../../components/AppChrome";
 
@@ -32,6 +32,7 @@ export function Login({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ username: "", password: "" });
   const [forgotOpen, setForgotOpen] = useState(false);
   const [captcha, setCaptcha] = useState<{ challengeId: string; imageDataUrl: string } | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState("");
@@ -54,6 +55,12 @@ export function Login({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    const nextFieldErrors = {
+      username: username.trim() ? "" : requiredFieldMessage(t.username),
+      password: password ? "" : requiredFieldMessage(t.password),
+    };
+    setFieldErrors(nextFieldErrors);
+    if (nextFieldErrors.username || nextFieldErrors.password) return;
     if (captcha && !captchaAnswer.trim()) {
       setError(t.captchaRequired);
       return;
@@ -82,20 +89,28 @@ export function Login({
 
   return (
     <PublicPageShell>
-      <Paper component="form" onSubmit={submit} sx={{ width: "100%", p: 3 }}>
+      <Paper component="form" noValidate onSubmit={submit} sx={{ width: "100%", p: 3 }}>
         <Stack spacing={2.5}>
           <TextField
             label={t.username}
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
+            onChange={(event) => {
+              setUsername(event.target.value);
+              setFieldErrors((current) => ({ ...current, username: "" }));
+            }}
+            error={Boolean(fieldErrors.username)}
+            helperText={fieldErrors.username}
           />
           <PasswordTextField
             label={t.password}
             value={password}
-            onChange={setPassword}
+            onChange={(value) => {
+              setPassword(value);
+              setFieldErrors((current) => ({ ...current, password: "" }));
+            }}
             autoComplete="current-password"
-            required
+            error={Boolean(fieldErrors.password)}
+            helperText={fieldErrors.password}
           />
           {captcha && (
             <Stack spacing={1}>
@@ -476,7 +491,6 @@ function ForgotPasswordDialog({
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             disabled={Boolean(resetToken)}
-            required
           />
           {question && !resetToken && (
             <TextField

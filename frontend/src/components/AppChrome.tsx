@@ -81,7 +81,7 @@ export function AppFooter() {
         textAlign: "left",
       }}
     >
-      <Typography variant="caption">ERP {ERP_VERSION}</Typography>
+      <Typography variant="caption">ERP {ERP_VERSION} © 2026 Paco Feng</Typography>
     </Box>
   );
 }
@@ -90,16 +90,20 @@ export function PasswordTextField({
   label,
   value,
   onChange,
-  required,
   autoComplete,
   fullWidth = true,
+  error = false,
+  helperText,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** Retained for existing callers; validation is handled by application forms. */
   required?: boolean;
   autoComplete?: string;
   fullWidth?: boolean;
+  error?: boolean;
+  helperText?: ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -109,7 +113,8 @@ export function PasswordTextField({
       label={label}
       type={visible ? "text" : "password"}
       value={value}
-      required={required}
+      error={error}
+      helperText={helperText}
       autoComplete={autoComplete}
       onChange={(event) => onChange(event.target.value)}
       slotProps={{

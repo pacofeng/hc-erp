@@ -240,7 +240,7 @@ public class OrderController {
     private void apply(Order order, OrderRequest request, String status) {
         if (Boolean.TRUE.equals(request.customized()) &&
                 (request.customRequirements() == null || request.customRequirements().isBlank())) {
-            throw new IllegalArgumentException("请填写订制要求");
+            throw new IllegalArgumentException("请输入订制要求");
         }
         if (request.beamStyle() != null && !request.machineModels().toUpperCase(java.util.Locale.ROOT).contains("HC3300")) {
             throw new IllegalArgumentException("横梁款式仅适用于HC3300系列");

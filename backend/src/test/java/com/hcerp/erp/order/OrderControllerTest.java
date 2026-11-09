@@ -160,8 +160,8 @@ class OrderControllerTest {
     @Test void rejectsMissingFieldsAndUnsupportedOptions() throws Exception {
         mvc.perform(post("/api/orders").principal(() -> "tester").contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors.customerName").value("客户或代理不能为空"))
-                .andExpect(jsonPath("$.fieldErrors.contractNumber").value("合同号不能为空"));
+                .andExpect(jsonPath("$.fieldErrors.customerName").value("请输入客户或代理"))
+                .andExpect(jsonPath("$.fieldErrors.contractNumber").value("请输入合同号"));
         mvc.perform(post("/api/orders").principal(() -> "tester").contentType("application/json")
                 .content(VALID.replace("木箱", "invalid"))).andExpect(status().isBadRequest());
         verify(repository, never()).save(any());
@@ -170,7 +170,7 @@ class OrderControllerTest {
     @Test void validatesCustomizationAndBeamApplicability() throws Exception {
         mvc.perform(post("/api/orders").principal(() -> "tester").contentType("application/json")
                 .content(VALID.replace("\"packaging\"", "\"customized\":true,\"packaging\"")))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("请填写订制要求"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("请输入订制要求"));
         mvc.perform(post("/api/orders").principal(() -> "tester").contentType("application/json")
                 .content(VALID.replace("HC3300H", "HC-QG-C")))
                 .andExpect(status().isBadRequest());

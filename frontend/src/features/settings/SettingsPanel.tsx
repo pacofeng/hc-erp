@@ -25,7 +25,7 @@ import {
   settingsFields,
   settingsFormSections,
 } from "../../app/schemaConfig";
-import type { Translation } from "../../app/i18n";
+import { requiredFieldMessage, type Translation } from "../../app/i18n";
 import type { AnyRow, Language, Session } from "../../app/types";
 import {
   FormSections,
@@ -139,8 +139,16 @@ export function SettingsPanel({
   async function changeSecurityQuestions() {
     setSecurityQuestionError("");
     const selectedQuestions = securityAnswers.map((item) => item.question);
-    if (!securityCurrentPassword || securityAnswers.some((item) => !item.question || !item.answer.trim())) {
-      setSecurityQuestionError(`${t.requiredFields}${t.currentPassword}、${t.securityQuestion}、${t.securityAnswer}`);
+    if (!securityCurrentPassword) {
+      setSecurityQuestionError(requiredFieldMessage(t.currentPassword));
+      return;
+    }
+    if (securityAnswers.some((item) => !item.question)) {
+      setSecurityQuestionError(requiredFieldMessage(t.securityQuestion, true));
+      return;
+    }
+    if (securityAnswers.some((item) => !item.answer.trim())) {
+      setSecurityQuestionError(requiredFieldMessage(t.securityAnswer));
       return;
     }
     if (new Set(selectedQuestions).size !== 3) {
@@ -171,8 +179,16 @@ export function SettingsPanel({
 
   async function changePassword() {
     setPasswordError("");
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError(`${t.requiredFields}${t.currentPassword}、${t.newPassword}、${t.confirmPassword}`);
+    if (!currentPassword) {
+      setPasswordError(requiredFieldMessage(t.currentPassword));
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError(requiredFieldMessage(t.newPassword));
+      return;
+    }
+    if (!confirmPassword) {
+      setPasswordError(requiredFieldMessage(t.confirmPassword));
       return;
     }
     if (newPassword.length < 8

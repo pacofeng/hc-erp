@@ -71,7 +71,7 @@ public class ProductController {
     }
 
     public record ProductRequest(
-            @NotBlank(message = "产品名称不能为空") @Size(max = 200, message = "产品名称不能超过200个字符") String name,
+            @NotBlank(message = "请输入产品名称") @Size(max = 200, message = "产品名称不能超过200个字符") String name,
             @Size(max = 4000, message = "产品描述不能超过4000个字符") String description,
             @NotBlank @Pattern(regexp = "启用|停用", message = "产品状态只能为启用或停用") String status) {
     }
